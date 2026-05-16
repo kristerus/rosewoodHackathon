@@ -188,25 +188,54 @@ function Home() {
       status: row.status ?? "open",
     });
 
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      setSseConnected(false);
-      return;
-    }
-
     // 1) Hydrate the dashboard with the most recent persisted tickets so the
-    //    UI doesn't look empty on a fresh load.
+    //    UI doesn't look empty on a fresh load. Uses server endpoint —
+    //    works without any NEXT_PUBLIC_ env var.
     void (async () => {
       try {
         const res = await fetch("/api/tickets/recent?limit=50");
         if (!res.ok) return;
         const data = (await res.json()) as { tickets: Ticket[] };
-        // Add oldest-first so the newest ends up at the top of the store list.
         for (const t of data.tickets.slice().reverse()) addTicket(t);
       } catch {
         /* offline hydration is best-effort */
       }
     })();
+
+    // 1b) Polling fallback — runs ALWAYS, regardless of Realtime status.
+    //     Catches new tickets within 3 seconds. Critical when the Supabase
+    //     Realtime websocket can't connect (e.g. NEXT_PUBLIC_SUPABASE_URL
+    //     missing from the Vercel build).
+    const pollInterval = window.setInterval(async () => {
+      try {
+        const res = await fetch("/api/tickets/recent?limit=50");
+        if (!res.ok) return;
+        const data = (await res.json()) as { tickets: Ticket[] };
+        const knownIds = new Set(useAppStore.getState().tickets.map((t) => t.id));
+        const fresh = data.tickets.filter((t) => !knownIds.has(t.id));
+        if (fresh.length === 0) return;
+        for (const t of fresh.slice().reverse()) {
+          addTicket(t);
+          const match = matchGuestForTicket(t, useAppStore.getState().guests);
+          if (match) {
+            focusGuest(match.id);
+            setFocusedKey(match.id);
+          }
+        }
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          try { navigator.vibrate?.(80); } catch {}
+        }
+      } catch {
+        /* polling is best-effort */
+      }
+    }, 3000);
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setSseConnected(false);
+      // Polling is still running — return a cleanup that stops it.
+      return () => window.clearInterval(pollInterval);
+    }
 
     // 2) Subscribe to live INSERTs from Supabase. Replaces the old SSE stream.
     const channel = supabase
@@ -252,6 +281,7 @@ function Home() {
       });
 
     return () => {
+      window.clearInterval(pollInterval);
       void supabase.removeChannel(channel);
     };
     // sseEpoch bump forces a re-subscribe (F5 refresh).
