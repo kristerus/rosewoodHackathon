@@ -16,9 +16,9 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "RoseWood Concierge AI",
+  title: "Oracle Hospitality · OPERA Cloud · Concierge AI",
   description:
-    "A voice-activated staff companion for the RoseWood — extracts intent from speech and routes service to the right team.",
+    "Oracle Hospitality OPERA Cloud — Concierge AI extension. Voice-driven service request capture from front-of-house staff badges, with anticipated guest needs.",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${cormorant.variable} h-full antialiased`}
       style={{ colorScheme: "light" }}
     >
-      <body className="min-h-full flex flex-col bg-rw-cream-soft text-rw-ink">
+      <body className="min-h-full flex flex-col bg-ora-bg text-ora-charcoal">
         {children}
       </body>
     </html>

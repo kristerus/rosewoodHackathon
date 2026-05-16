@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "RoseWood Badge",
+    "slug": "rosewood-badge",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "rosewoodbadge",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F3EC"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rosewood.badge",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "RoseWood Badge needs access to your microphone so staff can speak requests hands-free.",
+        "NSSpeechRecognitionUsageDescription": "RoseWood Badge uses on-device speech recognition to transcribe staff requests and route them to the right department.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.rosewood.badge",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F3EC"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow RoseWood Badge to access your microphone."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}
