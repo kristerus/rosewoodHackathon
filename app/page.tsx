@@ -98,6 +98,7 @@ function Home() {
   const setPredictions = useAppStore((s) => s.setPredictions);
   const focusGuest = useAppStore((s) => s.focusGuest);
   const addGuest = useAppStore((s) => s.addGuest);
+  const enrichGuest = useAppStore((s) => s.enrichGuest);
   const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
 
   const { toast } = useToast();
@@ -398,44 +399,54 @@ function Home() {
     if (!focusedGuest || isGeneratingBrief) return;
     setIsGeneratingBrief(true);
     setError(null);
-    try {
+    const guestId = focusedGuest.id;
+    const guestsSnapshot = useAppStore.getState().guests;
+
+    // Fire BOTH in parallel: the AI brief AND real social scraping.
+    // Brief failure falls back to /api/guest-brief; scrape failure is non-fatal.
+    const briefPromise = (async () => {
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          guest_id: focusedGuest.id,
-          guests: useAppStore.getState().guests,
-        }),
+        body: JSON.stringify({ guest_id: guestId, guests: guestsSnapshot }),
       });
-      if (!res.ok) {
-        const fb = await fetch("/api/guest-brief", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            guest_id: focusedGuest.id,
-            guests: useAppStore.getState().guests,
-          }),
-        });
-        if (!fb.ok) {
-          const err = await fb.json().catch(() => ({}));
-          throw new Error(err.error ?? `HTTP ${fb.status}`);
-        }
-        const data = (await fb.json()) as {
-          brief: Parameters<typeof setGuestBrief>[1];
-        };
-        setGuestBrief(focusedGuest.id, data.brief);
-        return;
+      if (res.ok) return (await res.json()) as { brief: Parameters<typeof setGuestBrief>[1] };
+      const fb = await fetch("/api/guest-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId, guests: guestsSnapshot }),
+      });
+      if (!fb.ok) {
+        const err = await fb.json().catch(() => ({}));
+        throw new Error(err.error ?? `HTTP ${fb.status}`);
       }
-      const data = (await res.json()) as {
-        brief: Parameters<typeof setGuestBrief>[1];
-      };
-      setGuestBrief(focusedGuest.id, data.brief);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      return (await fb.json()) as { brief: Parameters<typeof setGuestBrief>[1] };
+    })();
+
+    const scrapePromise = (async () => {
+      const res = await fetch("/api/social-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId, guests: guestsSnapshot }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { enriched_guest: Parameters<typeof enrichGuest>[1]; source: string };
+    })();
+
+    try {
+      const [briefResult, scrapeResult] = await Promise.allSettled([briefPromise, scrapePromise]);
+      if (briefResult.status === "fulfilled") {
+        setGuestBrief(guestId, briefResult.value.brief);
+      } else {
+        setError(briefResult.reason instanceof Error ? briefResult.reason.message : String(briefResult.reason));
+      }
+      if (scrapeResult.status === "fulfilled" && scrapeResult.value) {
+        enrichGuest(guestId, scrapeResult.value.enriched_guest);
+      }
     } finally {
       setIsGeneratingBrief(false);
     }
-  }, [focusedGuest, isGeneratingBrief, setGuestBrief]);
+  }, [focusedGuest, isGeneratingBrief, setGuestBrief, enrichGuest]);
 
   const onGeneratePredictions = useCallback(async () => {
     if (!focusedGuest || isGeneratingPredictions) return;

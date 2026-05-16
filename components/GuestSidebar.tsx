@@ -403,7 +403,7 @@ export default function GuestSidebar({
           }
         >
           {guest.research_brief ? (
-            <BriefBlock brief={guest.research_brief} />
+            <BriefBlock brief={guest.research_brief} guest={guest} />
           ) : (
             <div className="rounded-sm border border-dashed border-ora-hairline-2 px-3 py-3">
               <p className="text-[11.5px] text-ora-muted leading-relaxed">
@@ -631,7 +631,13 @@ function StatTile({
   );
 }
 
-function BriefBlock({ brief }: { brief: GuestBrief }) {
+function BriefBlock({ brief, guest }: { brief: GuestBrief; guest: Guest }) {
+  const wa = brief.welcomeActions;
+  const hasWelcome =
+    wa &&
+    ((wa.priorityActions && wa.priorityActions.length > 0) ||
+      (wa.amenities && wa.amenities.length > 0) ||
+      (wa.diningPrep && wa.diningPrep.length > 0));
   return (
     <div className="space-y-3 ora-card px-3 py-3">
       <p className="text-[12px] leading-relaxed text-ora-charcoal">
@@ -642,19 +648,111 @@ function BriefBlock({ brief }: { brief: GuestBrief }) {
           {brief.professional}
         </p>
       )}
-      {brief.recent_news?.length > 0 && (
-        <BriefList title="Recent" items={brief.recent_news} />
+
+      {/* High-priority tips first */}
+      {brief.riskFlags && brief.riskFlags.length > 0 && (
+        <div className="rounded-sm border border-ora-red/40 bg-ora-red-soft px-2.5 py-1.5">
+          <div className="text-[9.5px] uppercase tracking-wider font-bold text-ora-red-deep mb-1">
+            ⚠ Risk Flags
+          </div>
+          <ul className="space-y-0.5">
+            {brief.riskFlags.map((r, i) => (
+              <li key={i} className="text-[11px] text-ora-charcoal leading-snug">
+                • {r}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
+
+      {hasWelcome && (
+        <div className="rounded-sm border border-ora-blue/40 bg-ora-blue-soft px-2.5 py-1.5 space-y-1.5">
+          <div className="text-[9.5px] uppercase tracking-wider font-bold text-ora-blue mb-0.5">
+            ✦ Welcome Actions
+          </div>
+          {wa.priorityActions && wa.priorityActions.length > 0 && (
+            <MicroList label="Priority" items={wa.priorityActions} />
+          )}
+          {wa.amenities && wa.amenities.length > 0 && (
+            <MicroList label="Amenities" items={wa.amenities} />
+          )}
+          {wa.diningPrep && wa.diningPrep.length > 0 && (
+            <MicroList label="Dining" items={wa.diningPrep} />
+          )}
+        </div>
+      )}
+
+      {brief.personalizedExperiences && brief.personalizedExperiences.length > 0 && (
+        <BriefList title="Personalized Experiences" items={brief.personalizedExperiences} />
+      )}
+
       {brief.conversation_starters?.length > 0 && (
         <BriefList title="Conversation Starters" items={brief.conversation_starters} />
       )}
+
       {brief.preferences_inferred?.length > 0 && (
         <BriefList title="Inferred Preferences" items={brief.preferences_inferred} />
       )}
+
+      {brief.recent_news?.length > 0 && (
+        <BriefList title="Recent News" items={brief.recent_news} />
+      )}
+
+      {/* Real social scraping enrichments */}
+      {guest.linkedInSummary && (
+        <div>
+          <div className="text-[9.5px] uppercase tracking-wider font-semibold text-ora-muted mb-1">
+            LinkedIn
+          </div>
+          <p className="text-[11px] text-ora-charcoal leading-relaxed">
+            {guest.linkedInSummary}
+          </p>
+        </div>
+      )}
+
+      {guest.interests && guest.interests.length > 0 && (
+        <div>
+          <div className="text-[9.5px] uppercase tracking-wider font-semibold text-ora-muted mb-1">
+            Interests (scraped)
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {guest.interests.map((it, i) => (
+              <span
+                key={i}
+                className="inline-block text-[10.5px] px-2 py-0.5 rounded-sm bg-ora-bg border border-ora-hairline text-ora-charcoal"
+              >
+                {it}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {guest.recentNews && guest.recentNews.length > 0 && (
+        <BriefList title="Recent Social Activity" items={guest.recentNews} />
+      )}
+
       <div className="pt-2 border-t border-ora-hairline text-[10px] text-ora-muted-2 leading-relaxed">
         <span className="font-semibold uppercase tracking-wider">Sources:</span>{" "}
-        synthesized from public web search via Anthropic Claude
+        Anthropic web search · social scraping
       </div>
+    </div>
+  );
+}
+
+function MicroList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider font-semibold text-ora-muted">
+        {label}
+      </div>
+      <ul className="space-y-0.5 mt-0.5">
+        {items.map((it, i) => (
+          <li key={i} className="text-[11px] text-ora-charcoal leading-snug">
+            • {it}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
