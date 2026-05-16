@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  selectBadgeStats,
   useBadgesStore,
   type Badge,
   type BadgeDepartment,
@@ -221,7 +220,21 @@ interface BadgesPanelProps {
 
 export default function BadgesPanel({ open, onClose }: BadgesPanelProps) {
   const badges = useBadgesStore((s) => s.badges);
-  const stats = useBadgesStore(selectBadgeStats);
+  // Pick stats as primitives so Zustand can shallow-compare numbers
+  // (returning a fresh object from a selector triggers an infinite loop).
+  const total = useBadgesStore((s) => s.badges.length);
+  const online = useBadgesStore((s) => s.badges.filter((b) => b.online).length);
+  const lowBattery = useBadgesStore(
+    (s) => s.badges.filter((b) => b.battery_pct < 20).length,
+  );
+  const avgBattery = useBadgesStore((s) =>
+    s.badges.length === 0
+      ? 0
+      : Math.round(
+          s.badges.reduce((sum, b) => sum + b.battery_pct, 0) / s.badges.length,
+        ),
+  );
+  const stats = { total, online, offline: total - online, lowBattery, avgBattery };
   const [filter, setFilter] = useState<Filter>("all");
 
   // Force re-render every 5s so relative timestamps stay fresh.

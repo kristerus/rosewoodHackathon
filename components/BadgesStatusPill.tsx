@@ -1,6 +1,6 @@
 "use client";
 
-import { selectBadgeStats, useBadgesStore } from "@/lib/badges-store";
+import { useBadgesStore } from "@/lib/badges-store";
 
 interface BadgesStatusPillProps {
   onOpenPanel: () => void;
@@ -9,9 +9,18 @@ interface BadgesStatusPillProps {
 /**
  * Compact topbar pill: "● 6/8 BADGES" + optional low-battery count.
  * Dot color: green if all online & none low, amber if any low, red if any offline.
+ *
+ * Selects primitives individually so Zustand can shallow-compare numbers
+ * instead of an object reference (which would re-render infinitely).
  */
 export default function BadgesStatusPill({ onOpenPanel }: BadgesStatusPillProps) {
-  const stats = useBadgesStore(selectBadgeStats);
+  const total = useBadgesStore((s) => s.badges.length);
+  const online = useBadgesStore((s) => s.badges.filter((b) => b.online).length);
+  const lowBattery = useBadgesStore(
+    (s) => s.badges.filter((b) => b.battery_pct < 20).length,
+  );
+  const offline = total - online;
+  const stats = { total, online, offline, lowBattery };
 
   const dotColor =
     stats.offline > 0
