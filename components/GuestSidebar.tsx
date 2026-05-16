@@ -11,6 +11,8 @@ import type {
 } from "@/lib/types";
 import { useAppStore, type Prediction } from "@/lib/store";
 import { useToast } from "@/components/Toaster";
+import ResearchImagesGrid, { useResearchImages } from "@/components/ResearchImagesGrid";
+import IWantToButton from "@/components/IWantToButton";
 
 interface GuestSidebarProps {
   guest: Guest | null;
@@ -126,6 +128,13 @@ export default function GuestSidebar({
   const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
   const { toast } = useToast();
 
+  // Tavily image scrape — driven from the "Research" button below.
+  const {
+    images: researchImages,
+    loading: imagesLoading,
+    fetch: fetchImages,
+  } = useResearchImages(guest?.name);
+
   // On guest focus change, hydrate metadata from the server.
   useEffect(() => {
     if (!guest?.id) return;
@@ -186,6 +195,35 @@ export default function GuestSidebar({
             #{profileId(guest.id)}
           </span>
         </div>
+        <IWantToButton
+          size="sm"
+          align="right"
+          items={[
+            {
+              label: "Generate Research",
+              onClick: () => {
+                onGenerateBrief();
+                void fetchImages({ roleHint: guest.notes ?? guest.preferences?.join(", ") });
+              },
+            },
+            {
+              label: "Edit Pre-Arrival",
+              onClick: () => {
+                if (onEditPreArrival) onEditPreArrival();
+                else toast("Pre-arrival editor unavailable", "info");
+              },
+            },
+            { label: "Send Message", onClick: () => toast("Message dialog (mock)", "info") },
+            { label: "Add Note", onClick: () => toast("Open Notes tab to add a note", "info") },
+            { divider: true, label: "" },
+            { label: "Print Profile", onClick: () => toast("Print profile (mock)", "info") },
+            {
+              label: "Merge Duplicates",
+              onClick: () => toast("Merge profiles (mock)", "info"),
+              danger: true,
+            },
+          ]}
+        />
       </div>
 
       <div className="scroll-rw flex-1 min-h-0 overflow-y-auto">
@@ -248,15 +286,16 @@ export default function GuestSidebar({
             </div>
           </div>
 
-          {/* Stats tiles */}
-          <div className="mt-3 grid grid-cols-3 gap-0 border border-ora-hairline rounded-sm overflow-hidden">
-            <StatTile label="Stay Length" value={`${stayLen}n`} />
+          {/* Stats tiles — tighter */}
+          <div className="mt-2.5 grid grid-cols-4 gap-0 border border-ora-hairline rounded-sm overflow-hidden">
+            <StatTile label="Nights" value={`${stayLen}`} />
+            <StatTile label="Stays" value={String(guest.past_stays)} divider />
             <StatTile
-              label="Past Stays"
-              value={String(guest.past_stays)}
+              label="LTV"
+              value={`$${(guest.past_stays * 8.5).toFixed(1)}k`}
               divider
             />
-            <StatTile label="Loyalty" value={tier.label} divider small />
+            <StatTile label="ADR" value="$1.85k" divider />
           </div>
 
           {guest.notes && (
@@ -314,6 +353,57 @@ export default function GuestSidebar({
 
         <div className="hairline mx-4" />
 
+        {/* Documents */}
+        <Section
+          title="Documents"
+          accent={
+            <span className="text-[10px] text-ora-muted-2 tabular-nums">3 on file</span>
+          }
+        >
+          <div className="space-y-1.5">
+            <DocRow
+              icon="passport"
+              label="Passport"
+              meta="USA · ••••5847 · Exp 03/2031"
+              verified
+            />
+            <DocRow
+              icon="id"
+              label="Driver License"
+              meta="CA · ••••2104 · Exp 11/2028"
+              verified
+            />
+            <DocRow
+              icon="cc"
+              label="Credit Card"
+              meta="AMEX Centurion ending 4202"
+              verified
+            />
+          </div>
+        </Section>
+
+        <div className="hairline mx-4" />
+
+        {/* Communication Preferences */}
+        <Section
+          title="Communication Preferences"
+          accent={
+            <span className="text-[10px] text-ora-muted-2 uppercase tracking-wider">
+              GDPR · opt-in
+            </span>
+          }
+        >
+          <div className="ora-card px-3 py-2">
+            <CommRow label="Email" on />
+            <CommRow label="SMS" on />
+            <CommRow label="Phone Call" />
+            <CommRow label="Postal Mail" />
+            <CommRow label="WhatsApp" on />
+          </div>
+        </Section>
+
+        <div className="hairline mx-4" />
+
         {/* Research */}
         <Section
           title="Research"
@@ -324,7 +414,21 @@ export default function GuestSidebar({
           }
         >
           {guest.research_brief ? (
-            <BriefBlock brief={guest.research_brief} />
+            <>
+              <BriefBlock brief={guest.research_brief} />
+              {(researchImages.length > 0 || imagesLoading) && (
+                <div className="mt-2.5">
+                  <div className="ora-label mb-1">Photos</div>
+                  {imagesLoading ? (
+                    <div className="text-[11px] text-ora-muted italic py-2">
+                      Searching photos…
+                    </div>
+                  ) : (
+                    <ResearchImagesGrid images={researchImages} />
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-sm border border-dashed border-ora-hairline-2 px-3 py-3">
               <p className="text-[11.5px] text-ora-muted leading-relaxed">
@@ -333,7 +437,12 @@ export default function GuestSidebar({
               </p>
               <button
                 type="button"
-                onClick={onGenerateBrief}
+                onClick={() => {
+                  onGenerateBrief();
+                  void fetchImages({
+                    roleHint: guest.notes ?? guest.preferences?.join(", "),
+                  });
+                }}
                 disabled={isGeneratingBrief}
                 className="ora-btn ora-btn-primary mt-2.5"
               >
@@ -346,6 +455,16 @@ export default function GuestSidebar({
                   <>Research</>
                 )}
               </button>
+              {imagesLoading && (
+                <div className="mt-2 text-[11px] text-ora-muted italic">
+                  Searching photos…
+                </div>
+              )}
+              {!imagesLoading && researchImages.length > 0 && (
+                <div className="mt-2.5">
+                  <ResearchImagesGrid images={researchImages} />
+                </div>
+              )}
             </div>
           )}
         </Section>
@@ -535,23 +654,17 @@ function StatTile({
   label,
   value,
   divider,
-  small,
 }: {
   label: string;
   value: string;
   divider?: boolean;
-  small?: boolean;
 }) {
   return (
     <div
-      className={`px-2 py-2 bg-white ${divider ? "border-l border-ora-hairline" : ""}`}
+      className={`px-1.5 py-1.5 bg-white ${divider ? "border-l border-ora-hairline" : ""}`}
     >
-      <div className="ora-label">{label}</div>
-      <div
-        className={`mt-0.5 font-semibold text-ora-charcoal tabular-nums ${
-          small ? "text-[11.5px]" : "text-[14px]"
-        }`}
-      >
+      <div className="text-[9px] uppercase tracking-wider text-ora-muted font-semibold">{label}</div>
+      <div className="mt-0.5 font-semibold text-ora-charcoal tabular-nums text-[12.5px]">
         {value}
       </div>
     </div>
@@ -708,6 +821,95 @@ function BriefList({ title, items }: { title: string; items: string[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function DocRow({
+  icon,
+  label,
+  meta,
+  verified,
+}: {
+  icon: "passport" | "id" | "cc";
+  label: string;
+  meta: string;
+  verified?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 border border-ora-hairline rounded-sm bg-white hover:bg-ora-row-hover">
+      <span
+        className="h-7 w-7 shrink-0 rounded-sm flex items-center justify-center"
+        style={{ background: "var(--ora-bg)", color: "var(--ora-muted)" }}
+        aria-hidden
+      >
+        {icon === "passport" && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+            <circle cx="12" cy="11" r="3" />
+            <path d="M9 17h6" />
+          </svg>
+        )}
+        {icon === "id" && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <circle cx="8" cy="12" r="2.5" />
+            <path d="M14 10h6M14 14h4" />
+          </svg>
+        )}
+        {icon === "cc" && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
+          </svg>
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11.5px] font-semibold text-ora-charcoal leading-tight truncate">
+          {label}
+        </div>
+        <div className="text-[10px] text-ora-muted font-mono tabular-nums truncate">
+          {meta}
+        </div>
+      </div>
+      {verified && (
+        <span className="ora-chip ora-chip-green shrink-0">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+          </svg>
+          OK
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CommRow({ label, on }: { label: string; on?: boolean }) {
+  return (
+    <div className="flex items-center justify-between py-1 border-b border-ora-hairline last:border-b-0">
+      <span className="text-[11.5px] text-ora-charcoal">{label}</span>
+      <span
+        className={
+          "inline-flex items-center gap-1 text-[10.5px] font-semibold " +
+          (on ? "text-ora-green" : "text-ora-muted-2")
+        }
+      >
+        {on ? (
+          <>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+            </svg>
+            Opted in
+          </>
+        ) : (
+          <>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            Opted out
+          </>
+        )}
+      </span>
     </div>
   );
 }

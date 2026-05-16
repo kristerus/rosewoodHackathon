@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from "react";
 import type { Guest, Ticket } from "@/lib/types";
 import { matchGuestForTicket, useAppStore } from "@/lib/store";
+import IWantToButton from "@/components/IWantToButton";
+import { useToast } from "@/components/Toaster";
 
 interface InboxSidebarProps {
   guests: Guest[];
@@ -92,6 +94,15 @@ interface ReservationItem {
   count: number;
   status: StayStatus | null;
   confirmation: string | null;
+  isVip: boolean;
+  isWalkIn: boolean;
+  groupCode: string | null;
+}
+
+function hashId(id: string): number {
+  let n = 0;
+  for (let i = 0; i < id.length; i++) n = (n * 33 + id.charCodeAt(i)) >>> 0;
+  return n;
 }
 
 export default function InboxSidebar({
@@ -105,6 +116,7 @@ export default function InboxSidebar({
 }: InboxSidebarProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const mockDemoMode = useAppStore((s) => s.mockDemoMode);
+  const { toast } = useToast();
 
   const items: ReservationItem[] = useMemo(() => {
     const guestItems: ReservationItem[] = guests.map((g) => {
@@ -116,6 +128,10 @@ export default function InboxSidebar({
         return Boolean(byRoom || byName);
       });
       const last = gTickets[0] ?? null;
+      const h = hashId(g.id);
+      const isWalkIn = h % 11 === 0;
+      const groupCode = h % 7 === 0 ? `GRP-${(h % 9000 + 1000).toString()}` : null;
+      const isVip = g.vip_tier === "platinum" || g.vip_tier === "legacy";
       return {
         key: g.id,
         guest: g,
@@ -126,6 +142,9 @@ export default function InboxSidebar({
         count: gTickets.length,
         status: stayStatus(g, mockDemoMode),
         confirmation: confirmationNumber(g.id),
+        isVip,
+        isWalkIn,
+        groupCode,
       };
     });
 
@@ -160,6 +179,9 @@ export default function InboxSidebar({
           count: unassigned.length,
           status: null,
           confirmation: null,
+          isVip: false,
+          isWalkIn: false,
+          groupCode: null,
         },
       ];
     }
@@ -259,14 +281,56 @@ export default function InboxSidebar({
               const isUnassigned = it.guest === null;
               const hasOpenSR = it.count > 0;
               return (
-                <li key={it.key}>
+                <li key={it.key} className="relative group">
+                  {!isUnassigned && it.guest && (
+                    <div
+                      className="absolute top-1.5 right-2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <IWantToButton
+                        label="⋯"
+                        size="sm"
+                        align="right"
+                        title="I Want To…"
+                        items={[
+                          {
+                            label: "Check In",
+                            onClick: () => toast(`Checked in ${it.guest!.name} (mock)`, "success"),
+                          },
+                          {
+                            label: "Assign Room",
+                            onClick: () => toast("Room assignment (mock)", "info"),
+                          },
+                          {
+                            label: "Add Note",
+                            onClick: () => toast("Open Notes tab to add a note", "info"),
+                          },
+                          { divider: true, label: "" },
+                          {
+                            label: "Modify Reservation",
+                            onClick: () => toast("Modify reservation (mock)", "info"),
+                          },
+                          {
+                            label: "View Folio",
+                            onClick: () => toast("Switching to Folio tab (mock)", "info"),
+                          },
+                          { divider: true, label: "" },
+                          {
+                            label: "Cancel",
+                            danger: true,
+                            onClick: () => toast("Cancellation flow (mock)", "info"),
+                          },
+                        ]}
+                      />
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       if (isUnassigned) onFocusUnassigned();
                       else onFocusGuest(it.guest!.id);
                     }}
-                    className={`w-full text-left flex items-start gap-3 px-4 py-2.5 border-l-[3px] border-b border-b-ora-hairline transition-colors ${
+                    className={`w-full text-left flex items-start gap-2.5 px-3 py-1.5 border-l-[3px] border-b border-b-ora-hairline transition-colors ${
                       isFocused
                         ? "bg-ora-row-selected border-l-ora-red"
                         : "border-l-transparent hover:bg-ora-row-hover"
@@ -274,7 +338,7 @@ export default function InboxSidebar({
                   >
                     {/* Avatar / status indicator */}
                     <div
-                      className="h-8 w-8 shrink-0 rounded-sm flex items-center justify-center text-[10.5px] font-bold border"
+                      className="h-7 w-7 shrink-0 rounded-sm flex items-center justify-center text-[10px] font-bold border relative"
                       style={
                         isUnassigned
                           ? {
@@ -291,39 +355,48 @@ export default function InboxSidebar({
                       aria-hidden
                     >
                       {isUnassigned ? "?" : initials(it.displayName)}
+                      {it.isVip && (
+                        <span
+                          className="absolute -top-1 -right-1 h-3 w-3 rounded-full flex items-center justify-center text-[9px]"
+                          style={{ background: "var(--ora-amber)", color: "#fff" }}
+                          title="VIP"
+                        >
+                          ★
+                        </span>
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[12.5px] font-semibold text-ora-charcoal">
+                        <span className="truncate text-[12px] font-semibold text-ora-charcoal flex items-center gap-1">
                           {it.displayName}
                           {it.room && (
-                            <span className="ml-1.5 text-[11px] text-ora-muted font-normal">
-                              · Rm {it.room}
+                            <span className="text-[10.5px] text-ora-muted font-mono">
+                              · {it.room}
                             </span>
                           )}
                         </span>
                         {hasOpenSR && (
-                          <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[16px] px-1 rounded-sm bg-ora-red text-white text-[9.5px] font-bold tabular-nums">
+                          <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[15px] px-1 rounded-sm bg-ora-red text-white text-[9px] font-bold tabular-nums">
                             {it.count}
                           </span>
                         )}
                       </div>
 
-                      <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-ora-muted-2 tabular-nums">
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-ora-muted-2 tabular-nums">
                         {it.confirmation ? (
                           <span className="font-mono">{it.confirmation}</span>
                         ) : (
                           <span>—</span>
                         )}
                         {it.guest && (
-                          <span>
-                            · {shortDate(it.guest.booking_dates.check_in)} → {shortDate(it.guest.booking_dates.check_out)}
+                          <span className="font-mono">
+                            · {shortDate(it.guest.booking_dates.check_in)}→{shortDate(it.guest.booking_dates.check_out)}
                           </span>
                         )}
                       </div>
 
-                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                      <div className="mt-1 flex items-center gap-1 flex-wrap">
                         {it.status && (
                           <span className={`ora-chip ${STATUS_CHIP_CLASS[it.status]}`}>
                             {it.status}
@@ -332,6 +405,32 @@ export default function InboxSidebar({
                         {it.guest && (
                           <span className={`ora-chip ${TIER_CHIP_CLASS[it.guest.vip_tier]}`}>
                             {TIER_SHORT[it.guest.vip_tier]}
+                          </span>
+                        )}
+                        {it.isWalkIn && (
+                          <span
+                            className="ora-chip"
+                            style={{
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              borderColor: "#fde68a",
+                            }}
+                            title="Walk-in"
+                          >
+                            WI
+                          </span>
+                        )}
+                        {it.groupCode && (
+                          <span
+                            className="ora-chip"
+                            style={{
+                              background: "var(--ora-blue-soft)",
+                              color: "var(--ora-blue)",
+                              borderColor: "#c7dcf2",
+                            }}
+                            title={`Group: ${it.groupCode}`}
+                          >
+                            {it.groupCode}
                           </span>
                         )}
                         {isUnassigned && (

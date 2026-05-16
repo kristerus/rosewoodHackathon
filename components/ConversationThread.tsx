@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/components/Toaster";
+import IWantToButton from "@/components/IWantToButton";
 
 interface ConversationThreadProps {
   guest: Guest | null;
@@ -579,6 +580,8 @@ function ServiceRequestCard({
   const statusMeta = STATUS_META[status];
   const sr = srNumber(ticket.id);
   const [showRaw, setShowRaw] = useState(false);
+  const updateTicket = useAppStore((s) => s.updateTicket);
+  const { toast } = useToast();
 
   const cardClasses = [
     "ora-card slide-in cursor-pointer transition-all",
@@ -721,6 +724,45 @@ function ServiceRequestCard({
           >
             {showRaw ? "Hide" : "View"} Full SR
           </button>
+          <IWantToButton
+            size="sm"
+            align="right"
+            items={[
+              {
+                label: "Mark Resolved",
+                onClick: () => {
+                  updateTicket(ticket.id, { status: "resolved" });
+                  toast(`${sr} resolved`, "success");
+                },
+              },
+              {
+                label: "Reassign",
+                onClick: () => onAssign(),
+              },
+              {
+                label: "Escalate",
+                onClick: () => {
+                  updateTicket(ticket.id, { urgency: "urgent", status: "escalated" });
+                  toast("Escalated to Director on Duty (mock)", "error");
+                },
+                danger: true,
+              },
+              { divider: true, label: "" },
+              {
+                label: "Add Note",
+                onClick: () => toast("Add note to SR (mock)", "info"),
+              },
+              {
+                label: "View Full Transcript",
+                onClick: () => setShowRaw(true),
+              },
+              { divider: true, label: "" },
+              {
+                label: "Print",
+                onClick: () => toast("Print SR (mock)", "info"),
+              },
+            ]}
+          />
         </span>
       </div>
     </article>

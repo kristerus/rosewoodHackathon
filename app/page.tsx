@@ -27,6 +27,9 @@ import ReportsTab from "@/components/ReportsTab";
 import AddGuestModal, { type NewGuestInput } from "@/components/AddGuestModal";
 import ManualInputPanel, { type ManualGuestData } from "@/components/ManualInputPanel";
 import { ToasterProvider, useToast } from "@/components/Toaster";
+import BadgesPanel, { useBadgePingOnTicket } from "@/components/BadgesPanel";
+import BadgesStatusPill from "@/components/BadgesStatusPill";
+import SideDrawer from "@/components/SideDrawer";
 
 const STAFF_ID = "staff-kristian-01";
 const UNASSIGNED_KEY = "__unassigned__";
@@ -106,7 +109,6 @@ function Home() {
   const [isGeneratingPredictions, setIsGeneratingPredictions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sseConnected, setSseConnected] = useState(false);
-  const [today, setToday] = useState<string>("");
   const [showBadgeQR, setShowBadgeQR] = useState(true);
 
   // Modal/popover state
@@ -118,23 +120,16 @@ function Home() {
   const [manualInputOpen, setManualInputOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [badgesOpen, setBadgesOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Flash the wearer's badge to LIVE when an SSE ticket arrives.
+  useBadgePingOnTicket(tickets);
 
   const guestSidebarRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   // Bumping this state value re-runs the SSE effect (used by F5 Refresh).
   const [sseEpoch, setSseEpoch] = useState(0);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setToday(
-      new Date().toLocaleDateString([], {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-    );
-  }, []);
 
   // Close user popover on outside click
   useEffect(() => {
@@ -467,7 +462,7 @@ function Home() {
         },
         vip_tier: data.vip_tier,
         preferences: [],
-        past_stays: 0,
+        past_stays: data.past_stays,
         notes: data.notes ?? "",
         interaction_log: [],
       };
@@ -559,82 +554,92 @@ function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleRefresh, handleProfileFocus, handleOpenPreArrival]);
 
-  const handleFnKeyClick = useCallback(
-    (key: string) => {
-      switch (key) {
-        case "F1":
-          setHelpOpen(true);
-          break;
-        case "F2":
-          setPaletteOpen(true);
-          break;
-        case "F3":
-          setNewReservationOpen(true);
-          break;
-        case "F4":
-          handleOpenPreArrival();
-          break;
-        case "F5":
-          handleRefresh();
-          break;
-        case "F8":
-          handleProfileFocus();
-          break;
-        case "F12":
-          setNewSROpen(true);
-          break;
-      }
-    },
-    [handleRefresh, handleProfileFocus, handleOpenPreArrival],
-  );
-
   /* ---------- Render ---------- */
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-ora-bg text-ora-charcoal">
       {refreshing && <div className="ora-progress-bar" />}
 
-      {/* Row 1 — Oracle thin brand strip */}
-      <div className="shrink-0 h-9 px-4 flex items-center justify-between bg-white border-b border-ora-hairline">
-        <div className="flex items-center gap-3">
-          <span
-            className="font-bold tracking-tight text-[15px]"
-            style={{ color: "var(--ora-red)" }}
-          >
-            ORACLE
-          </span>
-          <span className="text-ora-muted text-[12px]">·</span>
-          <span className="text-[12px] text-ora-charcoal font-medium">
-            Hospitality
-          </span>
-          <span className="ml-1 inline-flex items-center rounded-sm border border-ora-hairline-2 bg-ora-bg px-1.5 py-0.5 text-[10px] font-semibold text-ora-charcoal tracking-wide">
-            OPERA Cloud
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <PropertyPicker />
-          <div className="h-4 w-px bg-ora-hairline" />
+      {/* Single thin OPERA Cloud topbar */}
+      <div className="shrink-0 h-11 px-3 flex items-center justify-between bg-white border-b border-ora-hairline">
+        {/* LEFT — hamburger + wordmark + property */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => setShowBadgeQR((v) => !v)}
-            className="ora-btn h-7"
-            title="Show Connect Badge QR"
+            aria-label="Open main menu"
+            onClick={() => setDrawerOpen((v) => !v)}
+            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-charcoal"
+            title="Main menu"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M3 3h7v7H3V3zm2 2v3h3V5H5zm9-2h7v7h-7V3zm2 2v3h3V5h-3zM3 14h7v7H3v-7zm2 2v3h3v-3H5zm9 0h2v2h-2v-2zm0 3h2v2h-2v-2zm3-3h2v5h-2v-5zm0-3h5v2h-5v-2z" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
             </svg>
-            Connect Badge
           </button>
           <button
             type="button"
-            aria-label="Settings"
-            onClick={() => setHelpOpen(true)}
-            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+            onClick={() => setActiveTab("service")}
+            className="font-bold tracking-tight text-[14px] leading-none hover:opacity-80"
+            style={{ color: "var(--ora-red)" }}
+            title="OPERA Cloud — Home"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+            OPERA Cloud
+          </button>
+          <span className="text-ora-muted-2">·</span>
+          <PropertyPicker />
+        </div>
+
+        {/* CENTER — breadcrumb */}
+        <div className="hidden md:flex items-center gap-1.5 text-[11px] text-ora-muted min-w-0 px-3 flex-1 justify-center">
+          <span className="truncate">
+            <span>
+              {NAV_TABS.find((t) => t.key === activeTab)?.label ?? "Service Requests"}
+            </span>
+            {activeTab === "service" && focusedGuest && (
+              <>
+                <span className="mx-1.5">›</span>
+                <span className="text-ora-charcoal font-medium">
+                  {focusedGuest.name}
+                  {focusedGuest.room && (
+                    <span className="ml-1 text-ora-muted font-normal">
+                      · {focusedGuest.room}
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* RIGHT — badges + status + help + avatar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <BadgesStatusPill onOpenPanel={() => setBadgesOpen(true)} />
+          <span className="h-4 w-px bg-ora-hairline" />
+          <span className="inline-flex items-center gap-1.5 text-[11px]">
+            <span className="relative flex h-1.5 w-1.5">
+              {sseConnected && (
+                <span className="absolute inset-0 rounded-full bg-ora-green opacity-60 pulse-ring" />
+              )}
+              <span
+                className={`relative h-1.5 w-1.5 rounded-full ${
+                  sseConnected ? "bg-ora-green" : "bg-ora-muted-2"
+                }`}
+              />
+            </span>
+            <span className="text-ora-charcoal">
+              {sseConnected ? "Live · Connected" : "Offline"}
+            </span>
+          </span>
+          <span className="h-4 w-px bg-ora-hairline" />
+          <button
+            type="button"
+            aria-label="Quick Find"
+            onClick={() => setPaletteOpen(true)}
+            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+            title="Quick Find (F2)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
             </svg>
           </button>
           <button
@@ -642,6 +647,7 @@ function Home() {
             aria-label="Help"
             onClick={() => setHelpOpen(true)}
             className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+            title="Help (F1)"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <circle cx="12" cy="12" r="10" />
@@ -695,96 +701,6 @@ function Home() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Row 2 — Tab navigation */}
-      <nav className="shrink-0 h-9 px-4 flex items-center bg-white border-b border-ora-hairline overflow-x-auto">
-        <div className="flex items-center">
-          <div className="pr-3 mr-2 border-r border-ora-hairline">
-            <Logo size={18} variant="mark" tone="forest" />
-          </div>
-          {NAV_TABS.map((tab) => {
-            const active = tab.key === activeTab;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                data-active={active ? "true" : "false"}
-                onClick={() => setActiveTab(tab.key)}
-                className="ora-tab"
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="ml-auto flex items-center gap-2 pl-4">
-          <button
-            type="button"
-            aria-label="Search"
-            onClick={() => setPaletteOpen(true)}
-            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
-            title="Quick Find (F2)"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-          </button>
-        </div>
-      </nav>
-
-      {/* Row 3 — breadcrumb + status strip */}
-      <div className="shrink-0 h-7 px-4 flex items-center justify-between bg-ora-bg border-b border-ora-hairline text-[11px]">
-        <div className="flex items-center gap-1.5 text-ora-muted">
-          <span className="hover:text-ora-charcoal cursor-default">Front Office</span>
-          <span>›</span>
-          <span className="hover:text-ora-charcoal cursor-default">
-            {NAV_TABS.find((t) => t.key === activeTab)?.label ?? "Service Requests"}
-          </span>
-          <span>›</span>
-          <span className="text-ora-charcoal font-medium">
-            {activeTab === "service" ? "Concierge AI Queue" : selectedProperty.name}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="text-ora-muted tabular-nums">{today}</span>
-          <span className="h-3 w-px bg-ora-hairline" />
-          <span className="inline-flex items-center gap-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              {sseConnected && (
-                <span className="absolute inset-0 rounded-full bg-ora-green opacity-60 pulse-ring" />
-              )}
-              <span
-                className={`relative h-1.5 w-1.5 rounded-full ${
-                  sseConnected ? "bg-ora-green" : "bg-ora-muted-2"
-                }`}
-              />
-            </span>
-            <span className="text-ora-charcoal">
-              {sseConnected
-                ? "Live · Connected to AI Concierge"
-                : "Offline · AI Concierge unavailable"}
-            </span>
-          </span>
-          <span className="h-3 w-px bg-ora-hairline" />
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="h-5 w-5 rounded-sm hover:bg-white flex items-center justify-center text-ora-muted hover:text-ora-charcoal"
-            aria-label="Refresh"
-            title="Refresh (F5)"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
-              <path d="M21 3v5h-5" />
-            </svg>
-          </button>
-          <span className="h-3 w-px bg-ora-hairline" />
-          <span className="text-ora-muted">
-            User: <span className="text-ora-charcoal font-medium">staff-kristian-01</span>
-          </span>
         </div>
       </div>
 
@@ -878,23 +794,84 @@ function Home() {
         )}
       </main>
 
-      {/* Bottom function-key bar (Opera trademark) */}
-      <footer className="shrink-0 h-7 px-3 flex items-center bg-white border-t border-ora-hairline overflow-x-auto">
-        {FN_KEYS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => handleFnKeyClick(f.key)}
-            className="ora-fnkey hover:bg-ora-row-hover cursor-pointer"
-          >
-            <kbd>{f.key}</kbd>
-            <span className="text-ora-muted">{f.label}</span>
-          </button>
-        ))}
-        <span className="ml-auto text-[10.5px] text-ora-muted-2 tracking-wide uppercase pl-3">
-          Oracle Hospitality OPERA Cloud · v24.4 · Property: {selectedProperty.id.toUpperCase()} · Session: kristian-01
-        </span>
-      </footer>
+      {/* Hamburger drawer — primary OPERA Cloud nav affordance */}
+      <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} topOffset={44}>
+        <div className="px-3 py-2.5 border-b border-ora-hairline bg-ora-bg flex items-center gap-2">
+          <Logo size={18} variant="mark" tone="forest" />
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold text-ora-charcoal leading-tight">
+              {selectedProperty.name}
+            </div>
+            <div className="text-[10px] text-ora-muted-2 uppercase tracking-wider">
+              OPERA Cloud · v26.2
+            </div>
+          </div>
+        </div>
+        <nav className="flex-1 overflow-y-auto scroll-rw py-1">
+          <DrawerItem
+            label="Home"
+            icon="home"
+            active={activeTab === "service"}
+            onClick={() => {
+              setActiveTab("service");
+              setDrawerOpen(false);
+            }}
+          />
+          {NAV_TABS.map((tab) => (
+            <DrawerItem
+              key={tab.key}
+              label={tab.label}
+              icon={tab.key}
+              active={activeTab === tab.key}
+              onClick={() => {
+                setActiveTab(tab.key);
+                setDrawerOpen(false);
+              }}
+            />
+          ))}
+          <div className="my-1.5 mx-3 h-px bg-ora-hairline" />
+          <DrawerItem
+            label="Configuration"
+            icon="config"
+            onClick={() => {
+              setActiveTab("setup");
+              setDrawerOpen(false);
+            }}
+          />
+          <DrawerItem
+            label="System"
+            icon="system"
+            onClick={() => {
+              setDrawerOpen(false);
+              setHelpOpen(true);
+            }}
+          />
+          <div className="my-1.5 mx-3 h-px bg-ora-hairline" />
+          <DrawerItem
+            label="Connect Badge (QR)"
+            icon="badge"
+            onClick={() => {
+              setShowBadgeQR(true);
+              setDrawerOpen(false);
+            }}
+          />
+          <DrawerItem
+            label="Fleet · Badges Panel"
+            icon="fleet"
+            onClick={() => {
+              setBadgesOpen(true);
+              setDrawerOpen(false);
+            }}
+          />
+        </nav>
+        <div className="px-3 py-2 border-t border-ora-hairline text-[10px] text-ora-muted-2 uppercase tracking-wider flex items-center justify-between">
+          <span>Property: {selectedProperty.id.toUpperCase()}</span>
+          <span>kristian-01</span>
+        </div>
+      </SideDrawer>
+
+      {/* Badges fleet panel */}
+      <BadgesPanel open={badgesOpen} onClose={() => setBadgesOpen(false)} />
 
       {/* Modals & overlays */}
       <HelpModal
@@ -955,6 +932,140 @@ function Home() {
       </Modal>
     </div>
   );
+}
+
+/* ---------------- Drawer Item ---------------- */
+
+function DrawerItem({
+  label,
+  icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12.5px] border-l-[3px] transition-colors " +
+        (active
+          ? "bg-ora-bg border-l-ora-red text-ora-charcoal font-semibold"
+          : "border-l-transparent text-ora-charcoal hover:bg-ora-row-hover")
+      }
+    >
+      <span
+        className="h-5 w-5 flex items-center justify-center text-ora-muted shrink-0"
+        aria-hidden
+      >
+        <DrawerIcon name={icon} />
+      </span>
+      <span className="flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
+function DrawerIcon({ name }: { name: string }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor" as const,
+    strokeWidth: 1.7,
+    "aria-hidden": true,
+  };
+  switch (name) {
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 11l9-8 9 8" />
+          <path d="M5 10v10h14V10" />
+        </svg>
+      );
+    case "reservations":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="17" rx="1.5" />
+          <path d="M3 9h18M8 2v4M16 2v4" />
+        </svg>
+      );
+    case "guests":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
+        </svg>
+      );
+    case "service":
+      return (
+        <svg {...common}>
+          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+        </svg>
+      );
+    case "activities":
+      return (
+        <svg {...common}>
+          <path d="M3 12h4l3-9 4 18 3-9h4" />
+        </svg>
+      );
+    case "folio":
+      return (
+        <svg {...common}>
+          <path d="M5 3h11l4 4v14H5z" />
+          <path d="M14 3v6h6" />
+        </svg>
+      );
+    case "reports":
+      return (
+        <svg {...common}>
+          <path d="M3 21V8" />
+          <path d="M9 21V4" />
+          <path d="M15 21v-9" />
+          <path d="M21 21V14" />
+        </svg>
+      );
+    case "setup":
+    case "config":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      );
+    case "system":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="12" rx="1.5" />
+          <path d="M8 20h8M12 16v4" />
+        </svg>
+      );
+    case "badge":
+      return (
+        <svg {...common}>
+          <rect x="4" y="4" width="16" height="16" rx="1" />
+          <path d="M4 9h16M9 4v16" />
+        </svg>
+      );
+    case "fleet":
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="12" cy="12" r="2.5" />
+          <circle cx="18" cy="12" r="2.5" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      );
+  }
 }
 
 /* ---------------- Help Modal ---------------- */
