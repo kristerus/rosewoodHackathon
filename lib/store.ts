@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { Department, Guest, GuestBrief, GuestMetadata, Ticket } from "@/lib/types";
 import { SEED_GUESTS } from "@/lib/seed";
 
@@ -86,7 +87,9 @@ const initialGuests: Guest[] = (SEED_GUESTS ?? []).map((g) => ({
   interaction_log: [...(g.interaction_log ?? [])],
 }));
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
   guests: initialGuests,
   tickets: [],
   predictions: {},
@@ -241,7 +244,16 @@ export const useAppStore = create<AppState>((set) => ({
         guestMetadata: { ...state.guestMetadata, [guestId]: merged },
       };
     }),
-}));
+    }),
+    {
+      name: 'rosewood-guests-storage',
+      partialize: (state) => ({
+        guests: state.guests,
+        guestMetadata: state.guestMetadata,
+      }),
+    },
+  ),
+);
 
 /** Selector helper — returns the currently focused guest (or null). */
 export function selectFocusedGuest(state: AppState): Guest | null {

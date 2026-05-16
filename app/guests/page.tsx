@@ -61,6 +61,7 @@ export default function GuestsPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(guests[0]?.id ?? null);
   const [nameInput, setNameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [scrapeStates, setScrapeState] = useState<Record<string, boolean>>({});
@@ -77,16 +78,19 @@ export default function GuestsPage() {
     if (existing) {
       setSelectedId(existing.id);
       setNameInput("");
+      setEmailInput("");
       return;
     }
 
     setIsDiscovering(true);
     setDiscoverError(null);
     try {
+      const body: { name: string; email?: string } = { name };
+      if (emailInput.trim()) body.email = emailInput.trim();
       const res = await fetch("/api/guest-discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -96,12 +100,13 @@ export default function GuestsPage() {
       addGuest(data.guest);
       setSelectedId(data.guest.id);
       setNameInput("");
+      setEmailInput("");
     } catch (e) {
       setDiscoverError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsDiscovering(false);
     }
-  }, [nameInput, guests, addGuest, isDiscovering]);
+  }, [nameInput, emailInput, guests, addGuest, isDiscovering]);
 
   const handleScrape = useCallback(
     async (guestId: string) => {
@@ -175,7 +180,7 @@ export default function GuestsPage() {
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
-                placeholder="Enter guest name…"
+                placeholder="Guest name…"
                 disabled={isDiscovering}
                 className="flex-1 rounded-full border px-3.5 py-2 text-[13px] focus:outline-none"
                 style={{
@@ -198,13 +203,27 @@ export default function GuestsPage() {
                 )}
               </button>
             </div>
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
+              placeholder="Email (optional — helps find the right profile)"
+              disabled={isDiscovering}
+              className="mt-2 w-full rounded-full border px-3.5 py-2 text-[12px] focus:outline-none"
+              style={{
+                borderColor: "var(--rw-stone-line)",
+                background: "var(--rw-cream)",
+                color: "var(--rw-ink)",
+              }}
+            />
             {discoverError && (
               <p className="mt-2 text-[11px]" style={{ color: "#dc2626" }}>
                 {discoverError}
               </p>
             )}
             <p className="mt-2 text-[10.5px] leading-relaxed" style={{ color: "var(--rw-mute)" }}>
-              Enter any name to search existing guests or discover their social profile.
+              Enter a name to search existing guests or discover their social profile. Add an email to disambiguate common names.
             </p>
           </div>
 
