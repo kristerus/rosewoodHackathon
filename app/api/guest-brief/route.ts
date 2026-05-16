@@ -126,6 +126,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Guest not found: ${guest_id}` }, { status: 404 });
   }
 
+  // Offline demo mode: return a pre-written brief when API key is absent.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const brief: GuestBrief = {
+      summary: `${guest.name} is a ${guest.vip_tier}-tier guest on their ${guest.past_stays > 0 ? `${guest.past_stays + 1}th` : 'first'} stay. ${guest.notes}`,
+      professional: guest.linkedInSummary ?? 'Details available in guest profile.',
+      recent_news: guest.recentNews ?? ['Recent profile activity not yet loaded.'],
+      conversation_starters: [
+        `Welcome back, ${guest.name.split(' ').slice(-1)[0]} — wonderful to see you again.`,
+        guest.interests?.length ? `I understand you enjoy ${guest.interests[0]} — we have some great options this week.` : 'How was your journey today?',
+        'Is there anything we can arrange to make your stay especially comfortable?',
+      ],
+      preferences_inferred: guest.preferences.slice(0, 3),
+      personalizedExperiences: (guest.interests ?? []).slice(0, 3).map((i) => `${i} enthusiast → curate a relevant local experience`).concat(['Loyalty guest → personal GM welcome note on arrival']),
+      welcomeActions: {
+        roomSetup: guest.preferences.join('; ') || 'Standard setup per profile.',
+        preArrivalDrink: 'Selection based on guest preferences — see profile.',
+        welcomeNote: `Dear ${guest.name}, we are delighted to welcome you to RoseWood. Every detail has been arranged with you in mind — please let us know how we can make this stay exceptional.`,
+        conciergeAlert: `${guest.vip_tier.toUpperCase()} tier. ${guest.dietaryRestrictions?.length ? `Dietary flags: ${guest.dietaryRestrictions.join(', ')}.` : ''} ${guest.notes}`,
+      },
+      riskFlags: [
+        ...(guest.dietaryRestrictions?.map((d) => `NEVER offer: ${d}`) ?? []),
+        'Always address by preferred title and surname.',
+      ],
+      generated_at: new Date().toISOString(),
+    };
+    return NextResponse.json({ brief });
+  }
+
   try {
     const client = getAnthropic();
     const response = await client.messages.create({

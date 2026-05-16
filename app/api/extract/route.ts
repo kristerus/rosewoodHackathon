@@ -2,6 +2,38 @@ import { NextResponse } from 'next/server';
 import { getAnthropic, ANTHROPIC_MODEL } from '@/lib/anthropic';
 import type { Department, Guest, Ticket, Urgency } from '@/lib/types';
 
+// Offline mock responses for the 5 demo scenarios (used when ANTHROPIC_API_KEY is absent).
+type MockScenario = { keywords: RegExp[]; ticket: Omit<Ticket, 'id' | 'timestamp' | 'raw_transcript' | 'staff_id'> };
+const MOCK_SCENARIOS: MockScenario[] = [
+  {
+    keywords: [/grinding noise/i, /AC.*412|412.*AC/i, /won't go below/i],
+    ticket: { guest_name: 'Mr. David Chen', room_number: '412', department: 'maintenance', intent: 'HVAC failure — occupied room', urgency: 'critical', action_required: 'Dispatch on-call HVAC engineer to room 412 immediately. If unresolved by 21:30, trigger room move to suite-tier inventory. Notify night manager.', guest_facing_message: 'Mr. Chen, our engineering team is on the way to room 412 right now. We apologize for the disruption — if it is not resolved within 15 minutes, we will move you to an upgraded suite with our compliments.', internal_notes: 'Platinum tier, 8th stay. Profile flag: prefers cool room temperature. This is a comfort-critical failure for this specific guest. Early flight on file — do not schedule follow-up before 06:00.' },
+  },
+  {
+    keywords: [/gardenias/i, /Whitfield/i, /1102/i],
+    ticket: { guest_name: 'Mrs. Eleanor Whitfield', room_number: '1102', department: 'concierge', intent: 'Repeat preference fulfillment — gardenia arrangement', urgency: 'high', action_required: 'Place gardenia arrangement (matching previous stay record) in room 1102 before 16:00. Confirm afternoon tea service set for 16:00 in the Drawing Room per standing preference.', guest_facing_message: '', internal_notes: 'Legacy tier, 41st stay. Past-stay log shows gardenia arrangement on stays #38 and #40. Afternoon tea at 4pm is a standing preference, not a one-off request.' },
+  },
+  {
+    keywords: [/nut|almond/i, /Chen|412/i, /welcome amenity|cheese board/i],
+    ticket: { guest_name: 'Mr. David Chen', room_number: '412', department: 'fnb', intent: 'Allergy alert — remove nuts from welcome amenity', urgency: 'urgent', action_required: 'Replace welcome amenity in room 412 immediately. Remove all nut-containing items including almonds. Update F&B allergy flag for this stay. Confirm kitchen and room service are notified.', guest_facing_message: 'Mr. Chen, we have updated your welcome amenity and ensured everything in room 412 is completely nut-free. Our F&B team has been briefed for the duration of your stay.', internal_notes: 'Platinum tier. Severe anaphylactic nut allergy — confirmed on every visit. Guest flagged an incident with almonds on the cheese board. Treat as priority safety item.' },
+  },
+  {
+    keywords: [/Patel|kosher|cardiology/i, /table 14|breakfast and dinner/i],
+    ticket: { guest_name: 'Dr. Raj Patel', room_number: '215', department: 'fnb', intent: 'Dietary requirement — kosher meals for full stay', urgency: 'normal', action_required: 'Coordinate certified kosher meals for Dr. Patel (room 215) for breakfast and dinner every day. Ensure room service carries the same dietary note. Liaise with kitchen now.', guest_facing_message: 'Dr. Patel, we have arranged certified kosher meals for breakfast and dinner throughout your stay. Room service is fully briefed — please do not hesitate to call if you need anything adjusted.', internal_notes: 'Gold tier, first stay. Attending International Cardiology Conference, speaking on day 2. Strictly kosher and vegetarian. Quiet room preference — no elevators.' },
+  },
+  {
+    keywords: [/Sofia|808/i, /lilies|peonies|wilting/i],
+    ticket: { guest_name: 'Ms. Sofia Marchetti', room_number: '808', department: 'housekeeping', intent: 'Floral refresh before turndown', urgency: 'high', action_required: 'Replace wilting lilies in room 808 with fresh white peonies before turndown (guest returns ~19:00). Source from florist if stock is low.', guest_facing_message: 'Ms. Marchetti, fresh white peonies have been arranged in your suite ahead of turndown. We hope the suite feels just right when you return this evening.', internal_notes: 'Legacy tier, 22nd stay. Standing preference: fresh flowers replaced daily, peonies or white roses preferred. Italian luxury buyer, knows GM personally.' },
+  },
+];
+
+function getMockTicket(transcript: string): Omit<Ticket, 'id' | 'timestamp' | 'raw_transcript' | 'staff_id'> | null {
+  for (const scenario of MOCK_SCENARIOS) {
+    if (scenario.keywords.some((re) => re.test(transcript))) return scenario.ticket;
+  }
+  return null;
+}
+
 export const runtime = 'nodejs';
 
 interface ExtractRequest {
@@ -121,6 +153,28 @@ export async function POST(req: Request) {
     preferences: g.preferences,
     notes: g.notes,
   }));
+
+  // Offline demo mode: use hardcoded responses when no API key is configured.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    const mock = getMockTicket(transcript);
+    const ticket: Ticket = {
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      raw_transcript: transcript,
+      staff_id,
+      ...(mock ?? {
+        guest_name: null,
+        room_number: null,
+        department: 'concierge' as Department,
+        intent: transcript.slice(0, 60),
+        urgency: 'normal' as Urgency,
+        action_required: 'Follow up with guest as described.',
+        guest_facing_message: 'Thank you — our team will be right with you.',
+        internal_notes: '[Demo mode — no API key configured]',
+      }),
+    };
+    return NextResponse.json({ ticket });
+  }
 
   try {
     const client = getAnthropic();
