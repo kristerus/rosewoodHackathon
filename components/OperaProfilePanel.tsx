@@ -7,6 +7,9 @@ interface OperaProfilePanelProps {
   guest: Guest | null;
   onGenerateBrief: () => void;
   isGeneratingBrief?: boolean;
+  onScrapeFromSocial?: () => void;
+  isScrapingSocial?: boolean;
+  lastScrapeSource?: 'apify' | 'demo' | null;
 }
 
 const TIER_META: Record<
@@ -58,6 +61,9 @@ export default function OperaProfilePanel({
   guest,
   onGenerateBrief,
   isGeneratingBrief,
+  onScrapeFromSocial,
+  isScrapingSocial,
+  lastScrapeSource,
 }: OperaProfilePanelProps) {
   return (
     <section className="flex h-full flex-col rounded-3xl border border-rw-stone-line bg-rw-cream-soft shadow-sm overflow-hidden">
@@ -85,6 +91,9 @@ export default function OperaProfilePanel({
             guest={guest}
             onGenerateBrief={onGenerateBrief}
             isGeneratingBrief={isGeneratingBrief}
+            onScrapeFromSocial={onScrapeFromSocial}
+            isScrapingSocial={isScrapingSocial}
+            lastScrapeSource={lastScrapeSource}
           />
         )}
       </div>
@@ -96,10 +105,16 @@ function GuestBody({
   guest,
   onGenerateBrief,
   isGeneratingBrief,
+  onScrapeFromSocial,
+  isScrapingSocial,
+  lastScrapeSource,
 }: {
   guest: Guest;
   onGenerateBrief: () => void;
   isGeneratingBrief?: boolean;
+  onScrapeFromSocial?: () => void;
+  isScrapingSocial?: boolean;
+  lastScrapeSource?: 'apify' | 'demo' | null;
 }) {
   const tier = TIER_META[guest.vip_tier];
   const initials = guest.name
@@ -223,6 +238,69 @@ function GuestBody({
           </ul>
         </Section>
       )}
+
+      {/* Social Intelligence */}
+      <Section
+        title="Social Intelligence"
+        accessory={
+          <div className="flex items-center gap-2">
+            {lastScrapeSource && (
+              <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-600">
+                ✓ {lastScrapeSource === 'apify' ? 'Live scrape' : 'Demo data'}
+              </span>
+            )}
+            {onScrapeFromSocial && (
+              <button
+                type="button"
+                onClick={onScrapeFromSocial}
+                disabled={isScrapingSocial}
+                className="rounded-full border border-rw-brass/40 bg-rw-brass/10 text-rw-brass px-3.5 py-1.5 text-[11px] uppercase tracking-[0.18em] hover:bg-rw-brass hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isScrapingSocial ? 'Scanning…' : '✦ Scan Social'}
+              </button>
+            )}
+          </div>
+        }
+      >
+        {isScrapingSocial ? (
+          <div className="rounded-2xl border border-dashed border-rw-brass/40 bg-rw-brass/5 px-5 py-5 text-center">
+            <div className="inline-block h-4 w-4 rounded-full border-2 border-rw-brass border-t-transparent animate-spin mb-2" />
+            <p className="text-[12px] text-rw-mute">Scanning social profiles…</p>
+          </div>
+        ) : guest.interests && guest.interests.length > 0 ? (
+          <div className="space-y-3">
+            <ul className="flex flex-wrap gap-2">
+              {guest.interests.map((interest) => (
+                <li
+                  key={interest}
+                  className="rounded-full border border-rw-forest/20 bg-rw-forest/5 px-3 py-1.5 text-[12px] text-rw-forest"
+                >
+                  {interest}
+                </li>
+              ))}
+            </ul>
+            {guest.recentNews && guest.recentNews.length > 0 && (
+              <div className="mt-3">
+                <div className="eyebrow mb-1.5">Recent Activity</div>
+                <ul className="space-y-1.5">
+                  {guest.recentNews.slice(0, 4).map((item, i) => (
+                    <li key={i} className="text-[12px] text-rw-ink leading-relaxed flex gap-2">
+                      <span className="mt-1.5 h-1 w-1 rounded-full bg-rw-brass shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-rw-stone-line px-5 py-4">
+            <p className="text-[12px] text-rw-mute leading-relaxed">
+              No social data yet. Click <span className="text-rw-brass">✦ Scan Social</span> to enrich this profile from the guest&apos;s social media — interests, recent activity, and lifestyle signals will populate here and feed into the AI brief.
+            </p>
+          </div>
+        )}
+      </Section>
 
       {/* Guest Brief */}
       <Section

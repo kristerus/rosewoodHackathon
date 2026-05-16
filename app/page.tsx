@@ -84,9 +84,12 @@ export default function Home() {
   const setGuestBrief = useAppStore((s) => s.setGuestBrief);
   const focusGuest = useAppStore((s) => s.focusGuest);
   const addLearnedPreference = useAppStore((s) => s.addLearnedPreference);
+  const enrichGuest = useAppStore((s) => s.enrichGuest);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+  const [isScrapingSocial, setIsScrapingSocial] = useState(false);
+  const [lastScrapeSource, setLastScrapeSource] = useState<'apify' | 'demo' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showArrival, setShowArrival] = useState(false);
 
@@ -218,6 +221,33 @@ export default function Home() {
     await generateBriefForGuest(focusedGuestId);
   };
 
+  const onScrapeFromSocial = useCallback(async () => {
+    if (!focusedGuestId || isScrapingSocial) return;
+    setIsScrapingSocial(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/social-scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_id: focusedGuestId,
+          guests: useAppStore.getState().guests,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { enriched_guest: Parameters<typeof enrichGuest>[1]; source: 'apify' | 'demo' };
+      enrichGuest(focusedGuestId, data.enriched_guest);
+      setLastScrapeSource(data.source);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsScrapingSocial(false);
+    }
+  }, [focusedGuestId, isScrapingSocial, enrichGuest]);
+
   const onSampleTranscript = async (text: string) => {
     if (isProcessing || isListening) return;
     setError(null);
@@ -297,6 +327,9 @@ export default function Home() {
             guest={focusedGuest}
             onGenerateBrief={onGenerateBrief}
             isGeneratingBrief={isGeneratingBrief}
+            onScrapeFromSocial={onScrapeFromSocial}
+            isScrapingSocial={isScrapingSocial}
+            lastScrapeSource={lastScrapeSource}
           />
         </div>
       </main>
