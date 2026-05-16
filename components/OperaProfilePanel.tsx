@@ -6,6 +6,7 @@ import type { Guest, Ticket } from "@/lib/types";
 interface OperaProfilePanelProps {
   guest: Guest | null;
   onGenerateBrief: () => void;
+  isGeneratingBrief?: boolean;
 }
 
 const TIER_META: Record<
@@ -56,6 +57,7 @@ function formatTime(iso: string) {
 export default function OperaProfilePanel({
   guest,
   onGenerateBrief,
+  isGeneratingBrief,
 }: OperaProfilePanelProps) {
   return (
     <section className="flex h-full flex-col rounded-3xl border border-rw-stone-line bg-rw-cream-soft shadow-sm overflow-hidden">
@@ -76,7 +78,15 @@ export default function OperaProfilePanel({
       <div className="hairline mx-8" />
 
       <div className="scroll-rw flex-1 overflow-y-auto px-8 py-6">
-        {!guest ? <EmptyState /> : <GuestBody guest={guest} onGenerateBrief={onGenerateBrief} />}
+        {!guest ? (
+          <EmptyState />
+        ) : (
+          <GuestBody
+            guest={guest}
+            onGenerateBrief={onGenerateBrief}
+            isGeneratingBrief={isGeneratingBrief}
+          />
+        )}
       </div>
     </section>
   );
@@ -85,9 +95,11 @@ export default function OperaProfilePanel({
 function GuestBody({
   guest,
   onGenerateBrief,
+  isGeneratingBrief,
 }: {
   guest: Guest;
   onGenerateBrief: () => void;
+  isGeneratingBrief?: boolean;
 }) {
   const tier = TIER_META[guest.vip_tier];
   const initials = guest.name
@@ -119,7 +131,18 @@ function GuestBody({
             </span>
             <span className="text-rw-stone-line">·</span>
             <span className="tabular-nums">{guest.past_stays} past stays</span>
+            {guest.lifetimeValue && (
+              <>
+                <span className="text-rw-stone-line">·</span>
+                <span>LTV {guest.lifetimeValue}</span>
+              </>
+            )}
           </div>
+          {guest.preferredLanguage && (
+            <p className="mt-1 text-[11px] text-rw-mute/70 italic">
+              Preferred language: {guest.preferredLanguage}
+            </p>
+          )}
         </div>
         <span
           className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10.5px] font-medium uppercase tracking-[0.16em] ${tier.className}`}
@@ -143,8 +166,25 @@ function GuestBody({
         </div>
       )}
 
+      {/* Dietary restrictions */}
+      {guest.dietaryRestrictions && guest.dietaryRestrictions.length > 0 && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <div className="eyebrow mb-1 text-red-700">Dietary & Allergy Flags</div>
+          <ul className="flex flex-wrap gap-2 mt-2">
+            {guest.dietaryRestrictions.map((r) => (
+              <li
+                key={r}
+                className="rounded-full border border-red-200 bg-white px-3 py-1 text-[11.5px] text-red-800 font-medium"
+              >
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Preferences */}
-      <Section title="Preferences">
+      <Section title="Recorded Preferences">
         {guest.preferences.length === 0 ? (
           <p className="text-[12px] text-rw-mute">No recorded preferences.</p>
         ) : (
@@ -161,29 +201,67 @@ function GuestBody({
         )}
       </Section>
 
+      {/* Learned preferences (from badge interactions) */}
+      {guest.learnedPreferences.length > 0 && (
+        <Section
+          title="Learned Preferences"
+          accessory={
+            <span className="text-[10px] uppercase tracking-[0.2em] text-rw-brass">
+              From badge interactions
+            </span>
+          }
+        >
+          <ul className="flex flex-wrap gap-2">
+            {guest.learnedPreferences.map((p) => (
+              <li
+                key={p}
+                className="rounded-full border border-rw-brass/40 bg-rw-brass/5 px-3 py-1.5 text-[12px] text-rw-brass"
+              >
+                ✦ {p}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {/* Guest Brief */}
       <Section
-        title="Guest Brief"
+        title="Guest Intelligence Brief"
         accessory={
-          !guest.research_brief && (
+          !guest.research_brief ? (
             <button
               type="button"
               onClick={onGenerateBrief}
-              className="rounded-full border border-rw-forest/30 bg-rw-forest text-rw-cream-soft px-3.5 py-1.5 text-[11px] uppercase tracking-[0.18em] hover:bg-rw-forest-deep transition-colors"
+              disabled={isGeneratingBrief}
+              className="rounded-full border border-rw-forest/30 bg-rw-forest text-rw-cream-soft px-3.5 py-1.5 text-[11px] uppercase tracking-[0.18em] hover:bg-rw-forest-deep transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Generate Brief
+              {isGeneratingBrief ? "Generating…" : "Generate Brief"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerateBrief}
+              disabled={isGeneratingBrief}
+              className="rounded-full border border-rw-stone-line bg-white text-rw-mute px-3 py-1 text-[11px] uppercase tracking-[0.18em] hover:border-rw-brass hover:text-rw-forest transition-colors disabled:opacity-40"
+            >
+              {isGeneratingBrief ? "Updating…" : "Refresh"}
             </button>
           )
         }
       >
-        {guest.research_brief ? (
+        {isGeneratingBrief && !guest.research_brief ? (
+          <div className="rounded-2xl border border-dashed border-rw-brass/40 bg-rw-brass/5 px-5 py-6 text-center">
+            <div className="inline-block h-4 w-4 rounded-full border-2 border-rw-brass border-t-transparent animate-spin mb-2" />
+            <p className="text-[12px] text-rw-mute">Generating AI brief…</p>
+          </div>
+        ) : guest.research_brief ? (
           <BriefBlock brief={guest.research_brief} />
         ) : (
           <div className="rounded-2xl border border-dashed border-rw-stone-line px-5 py-4">
             <p className="text-[12px] text-rw-mute leading-relaxed">
               No brief generated yet. The AI will surface a 360° view from
-              public sources — role, recent news, conversation starters and
-              inferred preferences.
+              public sources — role, recent news, personalized experiences, and
+              arrival preparation actions.
             </p>
           </div>
         )}
@@ -217,20 +295,72 @@ function GuestBody({
 
 function BriefBlock({ brief }: { brief: NonNullable<Guest["research_brief"]> }) {
   return (
-    <div className="rounded-2xl border border-rw-stone-line bg-white px-5 py-4 space-y-4">
+    <div className="rounded-2xl border border-rw-stone-line bg-white px-5 py-4 space-y-5">
       <p className="text-[13px] leading-relaxed text-rw-ink">{brief.summary}</p>
       {brief.professional && (
         <p className="text-[12px] text-rw-mute italic">{brief.professional}</p>
       )}
       {brief.recent_news?.length > 0 && (
-        <BriefList title="Recent" items={brief.recent_news} />
+        <BriefList title="Recent News" items={brief.recent_news} />
       )}
+
+      {/* Personalization section */}
+      {brief.personalizedExperiences?.length > 0 && (
+        <BriefList title="Personalized Experiences" items={brief.personalizedExperiences} />
+      )}
+
+      {/* Welcome actions */}
+      {brief.welcomeActions && (
+        <div className="rounded-xl border border-rw-forest/20 bg-rw-forest/5 px-4 py-4 space-y-3">
+          <div className="eyebrow eyebrow-brass">Room & Arrival Setup</div>
+          <WelcomeRow label="Room Setup" value={brief.welcomeActions.roomSetup} />
+          <WelcomeRow label="Welcome Drink" value={brief.welcomeActions.preArrivalDrink} />
+          <WelcomeRow label="Concierge Alert" value={brief.welcomeActions.conciergeAlert} />
+          {brief.welcomeActions.welcomeNote && (
+            <div>
+              <div className="text-[10.5px] uppercase tracking-[0.14em] text-rw-mute mb-1">
+                Welcome Note
+              </div>
+              <p className="text-[12px] text-rw-ink italic leading-relaxed border-l-2 border-rw-brass pl-3">
+                &ldquo;{brief.welcomeActions.welcomeNote}&rdquo;
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {brief.conversation_starters?.length > 0 && (
-        <BriefList title="Conversation" items={brief.conversation_starters} />
+        <BriefList title="Conversation Starters" items={brief.conversation_starters} />
       )}
       {brief.preferences_inferred?.length > 0 && (
-        <BriefList title="Inferred preferences" items={brief.preferences_inferred} />
+        <BriefList title="Inferred Preferences" items={brief.preferences_inferred} />
       )}
+
+      {/* Risk flags */}
+      {brief.riskFlags?.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <div className="eyebrow mb-2 text-red-700">⚠ Do Not</div>
+          <ul className="space-y-1">
+            {brief.riskFlags.map((flag, i) => (
+              <li key={i} className="flex gap-2 text-[12px] text-red-800 leading-relaxed">
+                <span className="shrink-0 mt-0.5">•</span>
+                <span>{flag}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WelcomeRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10.5px] uppercase tracking-[0.14em] text-rw-mute font-medium">
+        {label}
+      </div>
+      <p className="text-[12px] text-rw-ink leading-relaxed mt-0.5">{value}</p>
     </div>
   );
 }

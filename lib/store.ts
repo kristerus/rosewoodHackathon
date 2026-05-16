@@ -16,10 +16,12 @@ export interface AppState {
   addTicket: (t: Ticket) => void;
   setGuestBrief: (guestId: string, brief: GuestBrief) => void;
   focusGuest: (id: string | null) => void;
+  addLearnedPreference: (guestId: string, preference: string) => void;
 }
 
 const initialGuests: Guest[] = (SEED_GUESTS ?? []).map((g) => ({
   ...g,
+  learnedPreferences: [...(g.learnedPreferences ?? [])],
   interaction_log: [...(g.interaction_log ?? [])],
 }));
 
@@ -61,6 +63,15 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   focusGuest: (id) => set({ focusedGuestId: id }),
+
+  addLearnedPreference: (guestId, preference) =>
+    set((state) => ({
+      guests: state.guests.map((g) => {
+        if (g.id !== guestId) return g;
+        if (g.learnedPreferences.includes(preference)) return g;
+        return { ...g, learnedPreferences: [...g.learnedPreferences, preference] };
+      }),
+    })),
 }));
 
 /** Selector helper — returns the currently focused guest (or null). */
