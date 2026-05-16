@@ -12,6 +12,10 @@ const ACTOR_GOOGLE_SEARCH = 'apify~google-search-scraper';
 interface DiscoverRequest {
   name: string;
   email?: string;
+  social_handles?: {
+    instagram?: string;  // username only, no @ or URL
+    linkedin?: string;   // slug only, e.g. "eliaspfeffer"
+  };
 }
 
 const EXTRACT_TOOL = {
@@ -145,6 +149,7 @@ async function fetchPersonalWebsite(url: string): Promise<string | null> {
 async function discoverWithApify(
   name: string,
   email: string | undefined,
+  handles: { instagram?: string; linkedin?: string } | undefined,
   apiKey: string,
 ): Promise<{ posts: string[]; profilePhoto?: string }> {
   const posts: string[] = [];
@@ -152,45 +157,57 @@ async function discoverWithApify(
 
   const emailUsername = email ? email.split('@')[0].replace(/[^a-z0-9]/gi, '') : null;
 
-  // Phase 1: parallel searches to find profile URLs
+  // If handles are provided directly, use them — no need to Google-search for those platforms
+  const knownLinkedinUrl = handles?.linkedin
+    ? `https://www.linkedin.com/in/${handles.linkedin}/`
+    : undefined;
+  const knownInstagramUrl = handles?.instagram
+    ? `https://www.instagram.com/${handles.instagram}/`
+    : undefined;
+
+  // Phase 1: Google search only for platforms without known handles
   const [linkedinResults, instagramResults, websiteText] = await Promise.all([
-    googleSearch(`"${name}" site:linkedin.com/in`, apiKey),
-    googleSearch(`"${name}" site:instagram.com`, apiKey),
+    knownLinkedinUrl
+      ? Promise.resolve([] as Array<{ url: string; title: string; description: string }>)
+      : googleSearch(`"${name}" site:linkedin.com/in`, apiKey),
+    knownInstagramUrl
+      ? Promise.resolve([] as Array<{ url: string; title: string; description: string }>)
+      : googleSearch(`"${name}" site:instagram.com`, apiKey),
     emailUsername ? fetchPersonalWebsite(`https://${emailUsername}.de`) : Promise.resolve(null as string | null),
   ]);
 
-  // Email-based disambiguation for LinkedIn: prefer slug matching email username
-  const allLinkedinUrls = linkedinResults.filter((r) => r.url.includes('linkedin.com/in/')).map((r) => r.url);
-  let linkedinUrl: string | undefined;
-  if (emailUsername && allLinkedinUrls.length > 1) {
-    linkedinUrl = allLinkedinUrls.find((u) => u.toLowerCase().includes(emailUsername.toLowerCase())) ?? allLinkedinUrls[0];
-  } else {
-    linkedinUrl = allLinkedinUrls[0];
+  // Resolve LinkedIn URL: provided handle > email-slug match > first Google result
+  let linkedinUrl = knownLinkedinUrl;
+  if (!linkedinUrl) {
+    const allLinkedinUrls = linkedinResults.filter((r) => r.url.includes('linkedin.com/in/')).map((r) => r.url);
+    if (emailUsername && allLinkedinUrls.length > 1) {
+      linkedinUrl = allLinkedinUrls.find((u) => u.toLowerCase().includes(emailUsername.toLowerCase())) ?? allLinkedinUrls[0];
+    } else {
+      linkedinUrl = allLinkedinUrls[0];
+    }
   }
 
-  // Find Instagram URL from search results
-  const instagramUrl = instagramResults.find((r) => r.url.includes('instagram.com/'))?.url;
+  // Resolve Instagram URL: provided handle > first Google result
+  const instagramUrl = knownInstagramUrl ?? instagramResults.find((r) => r.url.includes('instagram.com/'))?.url;
 
-  // Phase 2: parallel scraping of found URLs + personal website + Instagram name-search
-  const [linkedinProfile, instagramFromUrl, instagramFromSearch] = await Promise.all([
+  // Phase 2: parallel scraping
+  const [linkedinProfile, instagramResult] = await Promise.all([
     linkedinUrl ? scrapeLinkedIn(linkedinUrl, apiKey) : Promise.resolve(null),
-    instagramUrl ? scrapeInstagram({ directUrls: [instagramUrl] }, apiKey) : Promise.resolve(null),
-    // Also search Instagram by name to catch handles not indexed by Google
-    scrapeInstagram({ search: name, searchType: 'user' }, apiKey),
+    instagramUrl
+      ? scrapeInstagram({ directUrls: [instagramUrl] }, apiKey)
+      // No handle and no Google result: fall back to name search
+      : scrapeInstagram({ search: name, searchType: 'user' }, apiKey),
   ]);
-
-  // Prefer direct URL scrape over name search for Instagram
-  const instagram = instagramFromUrl ?? instagramFromSearch;
 
   if (linkedinProfile?.text) posts.push(`LinkedIn: ${linkedinProfile.text}`);
   if (!profilePhoto && linkedinProfile?.photo) profilePhoto = linkedinProfile.photo;
 
-  if (instagram?.bio) posts.push(`Instagram (@${instagram.username ?? 'unknown'}): ${instagram.bio}`);
-  if (!profilePhoto && instagram?.photo) profilePhoto = instagram.photo;
+  if (instagramResult?.bio) posts.push(`Instagram (@${instagramResult.username ?? handles?.instagram ?? 'unknown'}): ${instagramResult.bio}`);
+  if (!profilePhoto && instagramResult?.photo) profilePhoto = instagramResult.photo;
 
   if (websiteText) posts.push(`Personal website (${emailUsername}.de): ${websiteText}`);
 
-  // Add snippet context from Google results for Claude's disambiguation
+  // Add LinkedIn search snippets for context (only when we used Google)
   for (const r of linkedinResults.slice(0, 2)) {
     if (r.description) posts.push(`LinkedIn search snippet: ${r.description.slice(0, 200)}`);
   }
@@ -224,7 +241,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { name, email } = body ?? {};
+  const { name, email, social_handles } = body ?? {};
   if (!name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
@@ -248,7 +265,7 @@ export async function POST(req: Request) {
   let profilePhoto: string | undefined;
 
   try {
-    const result = await discoverWithApify(trimmedName, trimmedEmail, apifyKey);
+    const result = await discoverWithApify(trimmedName, trimmedEmail, social_handles, apifyKey);
     discoveredPosts = result.posts;
     profilePhoto = result.profilePhoto;
   } catch {

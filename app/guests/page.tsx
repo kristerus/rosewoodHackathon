@@ -62,6 +62,8 @@ export default function GuestsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(guests[0]?.id ?? null);
   const [nameInput, setNameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [instagramInput, setInstagramInput] = useState("");
+  const [linkedinInput, setLinkedinInput] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [scrapeStates, setScrapeState] = useState<Record<string, boolean>>({});
@@ -79,14 +81,23 @@ export default function GuestsPage() {
       setSelectedId(existing.id);
       setNameInput("");
       setEmailInput("");
+      setInstagramInput("");
+      setLinkedinInput("");
       return;
     }
 
     setIsDiscovering(true);
     setDiscoverError(null);
     try {
-      const body: { name: string; email?: string } = { name };
+      const body: {
+        name: string;
+        email?: string;
+        social_handles?: { instagram?: string; linkedin?: string };
+      } = { name };
       if (emailInput.trim()) body.email = emailInput.trim();
+      const ig = instagramInput.trim().replace(/^@/, "").replace(/^https?:\/\/(?:www\.)?instagram\.com\//, "").replace(/\/$/, "");
+      const li = linkedinInput.trim().replace(/^\/in\//, "").replace(/^https?:\/\/(?:www\.)?linkedin\.com\/in\//, "").replace(/\/$/, "");
+      if (ig || li) body.social_handles = { ...(ig && { instagram: ig }), ...(li && { linkedin: li }) };
       const res = await fetch("/api/guest-discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,12 +112,14 @@ export default function GuestsPage() {
       setSelectedId(data.guest.id);
       setNameInput("");
       setEmailInput("");
+      setInstagramInput("");
+      setLinkedinInput("");
     } catch (e) {
       setDiscoverError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsDiscovering(false);
     }
-  }, [nameInput, emailInput, guests, addGuest, isDiscovering]);
+  }, [nameInput, emailInput, instagramInput, linkedinInput, guests, addGuest, isDiscovering]);
 
   const handleScrape = useCallback(
     async (guestId: string) => {
@@ -203,27 +216,51 @@ export default function GuestsPage() {
                 )}
               </button>
             </div>
-            <input
-              type="email"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
-              placeholder="Email (optional — helps find the right profile)"
-              disabled={isDiscovering}
-              className="mt-2 w-full rounded-full border px-3.5 py-2 text-[12px] focus:outline-none"
-              style={{
-                borderColor: "var(--rw-stone-line)",
-                background: "var(--rw-cream)",
-                color: "var(--rw-ink)",
-              }}
-            />
+            <div className="mt-2 space-y-1.5">
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
+                placeholder="Email (optional)"
+                disabled={isDiscovering}
+                className="w-full rounded-full border px-3.5 py-1.5 text-[12px] focus:outline-none"
+                style={{ borderColor: "var(--rw-stone-line)", background: "var(--rw-cream)", color: "var(--rw-ink)" }}
+              />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] shrink-0" style={{ color: "var(--rw-mute)" }}>Instagram</span>
+                <input
+                  type="text"
+                  value={instagramInput}
+                  onChange={(e) => setInstagramInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
+                  placeholder="@handle or URL"
+                  disabled={isDiscovering}
+                  className="flex-1 rounded-full border px-3 py-1.5 text-[12px] focus:outline-none"
+                  style={{ borderColor: "var(--rw-stone-line)", background: "var(--rw-cream)", color: "var(--rw-ink)" }}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] shrink-0" style={{ color: "var(--rw-mute)" }}>LinkedIn</span>
+                <input
+                  type="text"
+                  value={linkedinInput}
+                  onChange={(e) => setLinkedinInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleDiscover()}
+                  placeholder="/in/username or URL"
+                  disabled={isDiscovering}
+                  className="flex-1 rounded-full border px-3 py-1.5 text-[12px] focus:outline-none"
+                  style={{ borderColor: "var(--rw-stone-line)", background: "var(--rw-cream)", color: "var(--rw-ink)" }}
+                />
+              </div>
+            </div>
             {discoverError && (
               <p className="mt-2 text-[11px]" style={{ color: "#dc2626" }}>
                 {discoverError}
               </p>
             )}
             <p className="mt-2 text-[10.5px] leading-relaxed" style={{ color: "var(--rw-mute)" }}>
-              Enter a name to search existing guests or discover their social profile. Add an email to disambiguate common names.
+              All fields optional. Providing handles goes directly to the right profile without guessing.
             </p>
           </div>
 
