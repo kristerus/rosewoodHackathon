@@ -1,6 +1,11 @@
 // HMR-safe in-memory store of manually entered / email-parsed guest metadata.
 // Pinned to globalThis so Next.js hot module reloads in dev don't wipe state.
-// Mirrors the pattern in lib/event-bus.ts.
+//
+// NOTE: this is in-memory and does NOT survive across Vercel serverless
+// invocations. For the hackathon scope it's fine because metadata is always
+// fetched alongside guest_id from the same client session. If we ever need
+// cross-container persistence, move this into the Supabase `guest_metadata`
+// table (same pattern as tickets/transcripts in lib/supabase.ts).
 
 export interface GuestMetadata {
   eta?: string;                     // ISO timestamp or human "5:30 PM"

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic, ANTHROPIC_MODEL } from '@/lib/anthropic';
-import { publish } from '@/lib/event-bus';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { notifyDepartment } from '@/lib/email';
 import { SEED_GUESTS } from '@/lib/seed';
 import type { Department, Guest, Ticket, Urgency } from '@/lib/types';
 
@@ -10,6 +11,7 @@ interface BadgeTranscriptRequest {
   transcript: string;
   staff_id: string;
   known_guests?: Guest[];
+  property_id?: string;
 }
 
 interface ExtractedTicketFields {
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS_HEADERS });
   }
 
-  const { transcript, staff_id, known_guests } = body ?? ({} as BadgeTranscriptRequest);
+  const { transcript, staff_id, known_guests, property_id } = body ?? ({} as BadgeTranscriptRequest);
   if (!transcript || typeof transcript !== 'string' || !staff_id) {
     return NextResponse.json(
       { error: 'Missing required fields: transcript, staff_id' },
@@ -125,13 +127,25 @@ export async function POST(req: Request) {
     );
   }
 
+  const propertyId = property_id || 'rosewood-sf';
+
   // Phone won't have the guest list; fall back to seed.
   const guestList: Guest[] = Array.isArray(known_guests) && known_guests.length > 0
     ? known_guests
     : SEED_GUESTS;
 
-  // 1. Fire transcript event immediately so the web UI shows a "live transcript arriving" indicator.
-  publish({ type: 'transcript', transcript, staff_id });
+  // 1. Persist the live transcript so the dashboard's Realtime subscription
+  //    flashes the "listening" indicator.
+  try {
+    const supabase = getSupabaseAdmin();
+    await supabase
+      .from('transcripts')
+      .insert({ transcript, staff_id, property_id: propertyId });
+  } catch (e) {
+    // Non-fatal — Supabase outage shouldn't block the Claude call.
+    // eslint-disable-next-line no-console
+    console.warn('[badge-transcript] failed to insert transcript row:', e);
+  }
 
   const knownGuestsSummary = guestList.map((g) => ({
     name: g.name,
@@ -175,9 +189,71 @@ Call create_ticket now.`,
 
     const extracted = toolUse.input as ExtractedTicketFields;
 
+    // 2. Insert ticket into Supabase — the DB generates id + created_at, and
+    //    Realtime fans the INSERT out to every connected dashboard.
+    const supabase = getSupabaseAdmin();
+    const { data: inserted, error: insertErr } = await supabase
+      .from('tickets')
+      .insert({
+        guest_name: extracted.guest_name,
+        room_number: extracted.room_number,
+        department: extracted.department,
+        urgency: extracted.urgency,
+        intent: extracted.intent,
+        action_required: extracted.action_required,
+        guest_facing_message: extracted.guest_facing_message,
+        internal_notes: extracted.internal_notes,
+        raw_transcript: transcript,
+        staff_id,
+        status: 'open',
+        property_id: propertyId,
+      })
+      .select()
+      .single();
+
+    if (insertErr || !inserted) {
+      return NextResponse.json(
+        { error: `Supabase insert failed: ${insertErr?.message ?? 'unknown error'}` },
+        { status: 500, headers: CORS_HEADERS },
+      );
+    }
+
+    // 3. Email the department (or stub-log if RESEND_API_KEY absent).
+    const emailResult = await notifyDepartment({
+      id: inserted.id as string,
+      department: extracted.department,
+      urgency: extracted.urgency,
+      intent: extracted.intent,
+      action_required: extracted.action_required,
+      guest_name: extracted.guest_name,
+      room_number: extracted.room_number,
+      internal_notes: extracted.internal_notes,
+      raw_transcript: transcript,
+      staff_id,
+    });
+
+    // 4. Mirror the email outcome back onto the ticket row so the dashboard
+    //    can show a "emailed concierge@..." badge.
+    if (emailResult.sent || emailResult.to) {
+      try {
+        await supabase
+          .from('tickets')
+          .update({
+            email_sent: emailResult.sent,
+            email_sent_to: emailResult.to ?? null,
+          })
+          .eq('id', inserted.id);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[badge-transcript] failed to update email_sent fields:', e);
+      }
+    }
+
+    // Shape the response for the caller (phone). Map snake_case `created_at`
+    // back into the legacy `timestamp` field for any older clients.
     const ticket: Ticket = {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
+      id: inserted.id as string,
+      timestamp: (inserted.created_at as string) ?? new Date().toISOString(),
       raw_transcript: transcript,
       staff_id,
       guest_name: extracted.guest_name,
@@ -188,12 +264,13 @@ Call create_ticket now.`,
       action_required: extracted.action_required,
       guest_facing_message: extracted.guest_facing_message,
       internal_notes: extracted.internal_notes,
+      status: 'open',
     };
 
-    // 2. Fan the finished ticket out to the dashboard via SSE.
-    publish({ type: 'ticket', ticket });
-
-    return NextResponse.json({ ticket }, { headers: CORS_HEADERS });
+    return NextResponse.json(
+      { ticket, email: { sent: emailResult.sent, to: emailResult.to ?? null } },
+      { headers: CORS_HEADERS },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500, headers: CORS_HEADERS });

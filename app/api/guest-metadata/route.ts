@@ -5,7 +5,6 @@ import {
   setMetadata,
   type GuestMetadata,
 } from '@/lib/guest-metadata-store';
-import { publish } from '@/lib/event-bus';
 
 export const runtime = 'nodejs';
 
@@ -53,17 +52,8 @@ export async function POST(req: Request) {
 
   try {
     const metadata = setMetadata(guest_id, patch);
-
-    // Fire-and-forget event so SSE listeners (e.g. dashboards) can refresh.
-    // The event-bus AppEvent union doesn't include 'metadata' yet, and we're
-    // not allowed to modify lib/event-bus.ts in this scope — cast at the call
-    // site. The bus runtime accepts any JSON-serializable payload.
-    try {
-      publish({ type: 'metadata', guest_id, metadata } as never);
-    } catch {
-      // Never fail the request because of a downstream listener.
-    }
-
+    // Note: metadata is returned directly to the caller (the dashboard
+    // updates its Zustand store locally). No pub/sub fanout needed.
     return NextResponse.json({ metadata });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
