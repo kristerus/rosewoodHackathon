@@ -135,8 +135,9 @@ async function apifyRun(
 async function scrapeWithApify(
   handles: NonNullable<ScrapeRequest['social_handles']>,
   apiKey: string,
-): Promise<string[]> {
+): Promise<{ posts: string[]; profilePhoto?: string }> {
   const posts: string[] = [];
+  let profilePhoto: string | undefined;
 
   await Promise.allSettled([
     handles.twitter
@@ -148,6 +149,11 @@ async function scrapeWithApify(
           for (const item of (items as Array<Record<string, unknown>>).slice(0, 15)) {
             const text = ((item.full_text ?? item.text ?? '') as string).trim();
             if (text) posts.push(`Twitter: ${text.slice(0, 280)}`);
+            const author = item.author as Record<string, unknown> | undefined;
+            if (!profilePhoto) {
+              const pic = (author?.profilePicture ?? item.profileImageUrl ?? item.user_profile_image_url ?? '') as string;
+              if (pic) profilePhoto = pic.replace('_normal', '_400x400');
+            }
           }
         })
       : Promise.resolve(),
@@ -161,6 +167,10 @@ async function scrapeWithApify(
           for (const item of (items as Array<Record<string, unknown>>).slice(0, 15)) {
             const caption = ((item.caption ?? '') as string).trim();
             if (caption) posts.push(`Instagram: ${caption.slice(0, 200)}`);
+            if (!profilePhoto) {
+              const pic = (item.profilePicUrlHD ?? item.profilePicUrl ?? '') as string;
+              if (pic) profilePhoto = pic;
+            }
           }
         })
       : Promise.resolve(),
@@ -174,12 +184,16 @@ async function scrapeWithApify(
           for (const item of (items as Array<Record<string, unknown>>).slice(0, 5)) {
             const text = ((item.summary ?? item.headline ?? '') as string).trim();
             if (text) posts.push(`LinkedIn: ${text.slice(0, 400)}`);
+            if (!profilePhoto) {
+              const pic = (item.picture ?? item.profilePicture ?? item.image ?? '') as string;
+              if (pic) profilePhoto = pic;
+            }
           }
         })
       : Promise.resolve(),
   ]);
 
-  return posts;
+  return { posts, profilePhoto };
 }
 
 async function extractWithClaude(
@@ -291,7 +305,7 @@ export async function POST(req: Request) {
   // Real Apify path
   if (apifyKey && hasRealHandles) {
     try {
-      const rawPosts = await scrapeWithApify(social_handles!, apifyKey);
+      const { posts: rawPosts, profilePhoto } = await scrapeWithApify(social_handles!, apifyKey);
       if (rawPosts.length === 0) {
         return NextResponse.json(
           { error: 'Scraping returned no results — check handles and Apify actor availability' },
@@ -301,13 +315,13 @@ export async function POST(req: Request) {
 
       if (!process.env.ANTHROPIC_API_KEY) {
         return NextResponse.json<ScrapeResult>({
-          enriched_guest: { interests: guest.interests ?? [], recentNews: rawPosts.slice(0, 5), learnedPreferences: guest.learnedPreferences },
+          enriched_guest: { interests: guest.interests ?? [], recentNews: rawPosts.slice(0, 5), learnedPreferences: guest.learnedPreferences, ...(profilePhoto && { profilePhoto }) },
           source: 'apify',
         });
       }
 
       const enriched = await extractWithClaude(guest, rawPosts);
-      return NextResponse.json<ScrapeResult>({ enriched_guest: enriched, source: 'apify' });
+      return NextResponse.json<ScrapeResult>({ enriched_guest: { ...enriched, ...(profilePhoto && { profilePhoto }) }, source: 'apify' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return NextResponse.json({ error: message }, { status: 500 });

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
+import Link from "next/link";
 import { useAppStore, selectFocusedGuest } from "@/lib/store";
 import { useWebSpeech } from "@/hooks/useWebSpeech";
 import BadgePanel from "@/components/BadgePanel";
@@ -278,6 +279,12 @@ export default function Home() {
           <Pill label="Glowing.io" status="online" />
           <Pill label="Opera PMS" status="online" />
           <Pill label="Anthropic" status="online" />
+          <Link
+            href="/guests"
+            className="rounded-full border border-rw-stone-line bg-white px-4 py-1.5 text-[11px] uppercase tracking-[0.18em] text-rw-mute hover:border-rw-brass hover:text-rw-forest transition-colors"
+          >
+            Guest Profiles ↗
+          </Link>
         </div>
         <div className="flex items-center gap-5">
           <button

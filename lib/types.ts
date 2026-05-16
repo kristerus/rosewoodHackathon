@@ -53,4 +53,5 @@ export interface Guest {
   lifetimeValue?: string;
   research_brief?: GuestBrief;
   interaction_log: Ticket[];
+  profilePhoto?: string;
 }

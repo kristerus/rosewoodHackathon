@@ -18,6 +18,7 @@ export interface AppState {
   focusGuest: (id: string | null) => void;
   addLearnedPreference: (guestId: string, preference: string) => void;
   enrichGuest: (guestId: string, partial: Partial<Guest>) => void;
+  addGuest: (guest: Guest) => void;
 }
 
 const initialGuests: Guest[] = (SEED_GUESTS ?? []).map((g) => ({
@@ -86,6 +87,11 @@ export const useAppStore = create<AppState>((set) => ({
         }
         return merged;
       }),
+    })),
+
+  addGuest: (guest) =>
+    set((state) => ({
+      guests: [...state.guests, { ...guest, learnedPreferences: guest.learnedPreferences ?? [], interaction_log: guest.interaction_log ?? [] }],
     })),
 }));
 
