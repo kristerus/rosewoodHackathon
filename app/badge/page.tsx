@@ -117,7 +117,7 @@ export default function BadgePage() {
       if (routedTimerRef.current) clearTimeout(routedTimerRef.current);
       routedTimerRef.current = setTimeout(() => {
         setStatus({ kind: "idle" });
-      }, 3000);
+      }, 1500);
     } catch {
       setStatus({ kind: "error" });
       if (routedTimerRef.current) clearTimeout(routedTimerRef.current);
