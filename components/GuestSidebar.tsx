@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Department,
   Guest,
@@ -9,6 +9,7 @@ import type {
   Ticket,
   TicketStatus,
 } from "@/lib/types";
+import type { KnowledgeFact } from "@/lib/guest-agent";
 import { useAppStore, type Prediction } from "@/lib/store";
 import { useToast } from "@/components/Toaster";
 import IWantToButton from "@/components/IWantToButton";
@@ -127,6 +128,12 @@ export default function GuestSidebar({
   const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
   const { toast } = useToast();
 
+  // ── Agent Memory state ───────────────────────────────────────────────────
+  const [agentFacts, setAgentFacts] = useState<KnowledgeFact[]>([]);
+  const [agentQuestion, setAgentQuestion] = useState("");
+  const [agentAnswer, setAgentAnswer] = useState<string | null>(null);
+  const [agentAsking, setAgentAsking] = useState(false);
+
   // On guest focus change, hydrate metadata from the server.
   useEffect(() => {
     if (!guest?.id) return;
@@ -148,6 +155,46 @@ export default function GuestSidebar({
       cancelled = true;
     };
   }, [guest?.id, setGuestMetadata]);
+
+  // Fetch agent knowledge whenever the focused guest changes.
+  useEffect(() => {
+    if (!guest?.id) { setAgentFacts([]); return; }
+    setAgentFacts([]);
+    setAgentAnswer(null);
+    setAgentQuestion("");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/guest-agent/${encodeURIComponent(guest.id)}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { knowledge: KnowledgeFact[] };
+        if (!cancelled) setAgentFacts(data.knowledge ?? []);
+      } catch {
+        // ignore — feature degrades gracefully
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [guest?.id]);
+
+  const handleAskAgent = useCallback(async () => {
+    if (!guest || !agentQuestion.trim() || agentAsking) return;
+    setAgentAsking(true);
+    setAgentAnswer(null);
+    try {
+      const res = await fetch(`/api/guest-agent/${encodeURIComponent(guest.id)}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: agentQuestion.trim(), guest_name: guest.name }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      const data = (await res.json()) as { answer: string };
+      setAgentAnswer(data.answer);
+    } catch {
+      setAgentAnswer("Failed to reach agent. Please try again.");
+    } finally {
+      setAgentAsking(false);
+    }
+  }, [guest, agentQuestion, agentAsking]);
 
   if (!guest) {
     return (
@@ -518,6 +565,84 @@ export default function GuestSidebar({
                   <>Generate Anticipated Needs</>
                 )}
               </button>
+            </div>
+          )}
+        </Section>
+
+        <div className="hairline mx-4" />
+
+        {/* Agent Memory */}
+        <Section
+          title="Agent Memory"
+          accent={
+            <span className="ora-chip ora-chip-blue">
+              AI · {agentFacts.length} fact{agentFacts.length === 1 ? "" : "s"}
+            </span>
+          }
+        >
+          {agentFacts.length > 0 ? (
+            <div className="space-y-2">
+              <ul className="space-y-1.5">
+                {agentFacts.slice(0, 6).map((f) => (
+                  <li key={f.id} className="ora-card px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11.5px] text-ora-charcoal leading-relaxed flex-1">
+                        {f.fact}
+                      </p>
+                      <span className="ora-chip ora-chip-grey shrink-0 font-mono">
+                        {f.source}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[10px] text-ora-muted-2 tabular-nums">
+                      {new Date(f.created_at).toLocaleString("en-US", {
+                        month: "short", day: "numeric",
+                        hour: "numeric", minute: "2-digit",
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {agentFacts.length > 6 && (
+                <p className="text-[11px] text-ora-muted text-center">
+                  +{agentFacts.length - 6} more facts in memory
+                </p>
+              )}
+              {/* Ask the agent */}
+              <div className="pt-1">
+                <div className="ora-label mb-1.5">Ask this guest&apos;s agent</div>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={agentQuestion}
+                    onChange={(e) => { setAgentQuestion(e.target.value); setAgentAnswer(null); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAskAgent(); }}
+                    placeholder={`What does ${guest.name.split(" ").slice(-1)[0]} prefer?`}
+                    className="flex-1 text-[11.5px] rounded-sm border border-ora-hairline px-2 py-1.5 bg-white text-ora-charcoal placeholder:text-ora-muted-2 focus:outline-none focus:ring-1 focus:ring-ora-blue/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAskAgent}
+                    disabled={agentAsking || !agentQuestion.trim()}
+                    className="ora-btn ora-btn-primary h-7 text-[11px]"
+                  >
+                    {agentAsking ? <Spinner /> : "Ask"}
+                  </button>
+                </div>
+                {agentAnswer && (
+                  <div className="mt-2 rounded-sm border border-ora-hairline bg-ora-bg px-3 py-2">
+                    <p className="text-[11.5px] text-ora-charcoal leading-relaxed">
+                      {agentAnswer}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-sm border border-dashed border-ora-hairline-2 px-3 py-3">
+              <p className="text-[11.5px] text-ora-muted leading-relaxed">
+                Each wearable badge transcript is automatically routed to this guest&apos;s
+                dedicated agent. Facts accumulate here over time.
+              </p>
             </div>
           )}
         </Section>

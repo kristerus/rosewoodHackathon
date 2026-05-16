@@ -3,6 +3,7 @@ import { getAnthropic, ANTHROPIC_MODEL } from '@/lib/anthropic';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyDepartment } from '@/lib/email';
 import { SEED_GUESTS } from '@/lib/seed';
+import { extractAndIngest } from '@/lib/guest-agent';
 import type { Department, Guest, Ticket, Urgency } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -247,6 +248,29 @@ Call create_ticket now.`,
         // eslint-disable-next-line no-console
         console.warn('[badge-transcript] failed to update email_sent fields:', e);
       }
+    }
+
+    // 5. Route transcript to the per-guest AI agent (fire-and-forget).
+    //    Identify the guest by name or room number, then extract learned facts.
+    const matchedGuest = guestList.find((g) => {
+      const byName =
+        extracted.guest_name &&
+        g.name.toLowerCase().includes(extracted.guest_name.toLowerCase());
+      const byRoom = extracted.room_number && g.room === extracted.room_number;
+      return byName || byRoom;
+    });
+    if (matchedGuest) {
+      let agentSupabase = null;
+      try { agentSupabase = getSupabaseAdmin(); } catch { /* ok */ }
+      extractAndIngest({
+        guest_id: matchedGuest.id,
+        guest_name: matchedGuest.name,
+        text: transcript,
+        source: 'transcript',
+        source_ref: inserted.id as string,
+        property_id: propertyId,
+        supabase: agentSupabase,
+      }).catch(() => { /* non-fatal */ });
     }
 
     // Shape the response for the caller (phone). Map snake_case `created_at`
