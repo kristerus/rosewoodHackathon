@@ -793,9 +793,10 @@ function BriefBlock({
   const wa = brief?.welcomeActions;
   const hasWelcome =
     wa &&
-    ((wa.priorityActions && wa.priorityActions.length > 0) ||
-      (wa.amenities && wa.amenities.length > 0) ||
-      (wa.diningPrep && wa.diningPrep.length > 0));
+    (Boolean(wa.roomSetup) ||
+      Boolean(wa.preArrivalDrink) ||
+      Boolean(wa.welcomeNote) ||
+      Boolean(wa.conciergeAlert));
   return (
     <div className="space-y-3 ora-card px-3 py-3">
       {brief?.summary && (
@@ -830,14 +831,17 @@ function BriefBlock({
           <div className="text-[9.5px] uppercase tracking-wider font-bold text-ora-blue mb-0.5">
             ✦ Welcome Actions
           </div>
-          {wa.priorityActions && wa.priorityActions.length > 0 && (
-            <MicroList label="Priority" items={wa.priorityActions} />
+          {wa.roomSetup && (
+            <WelcomeRow label="Room Setup" text={wa.roomSetup} />
           )}
-          {wa.amenities && wa.amenities.length > 0 && (
-            <MicroList label="Amenities" items={wa.amenities} />
+          {wa.preArrivalDrink && (
+            <WelcomeRow label="Pre-Arrival Drink" text={wa.preArrivalDrink} />
           )}
-          {wa.diningPrep && wa.diningPrep.length > 0 && (
-            <MicroList label="Dining" items={wa.diningPrep} />
+          {wa.welcomeNote && (
+            <WelcomeRow label="Welcome Note" text={wa.welcomeNote} />
+          )}
+          {wa.conciergeAlert && (
+            <WelcomeRow label="Concierge Alert" text={wa.conciergeAlert} />
           )}
         </div>
       )}
@@ -913,6 +917,19 @@ function MicroList({ label, items }: { label: string; items: string[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function WelcomeRow({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wider font-semibold text-ora-muted">
+        {label}
+      </div>
+      <p className="text-[11px] text-ora-charcoal leading-snug mt-0.5">
+        {text}
+      </p>
     </div>
   );
 }
