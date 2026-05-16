@@ -48,6 +48,7 @@ const URGENCY_DOT: Record<Urgency, string> = {
   normal: "bg-emerald-500",
   high: "bg-amber-500",
   urgent: "bg-red-500",
+  critical: "bg-red-600",
 };
 
 const URGENCY_LABEL: Record<Urgency, string> = {
@@ -55,6 +56,7 @@ const URGENCY_LABEL: Record<Urgency, string> = {
   normal: "Routine",
   high: "Elevated",
   urgent: "Urgent",
+  critical: "CRITICAL",
 };
 
 function formatTime(iso: string) {
@@ -119,9 +121,10 @@ export default function StaffTasksPanel({ tickets }: StaffTasksPanelProps) {
 
 function TaskCard({ ticket }: { ticket: Ticket }) {
   const meta = DEPT_META[ticket.department];
+  const isCritical = ticket.urgency === "critical";
   return (
     <li className="slide-in">
-      <article className="rounded-2xl border border-rw-stone-line bg-white px-5 py-4 shadow-sm transition-colors hover:border-rw-brass/50">
+      <article className={`rounded-2xl border px-5 py-4 shadow-sm transition-colors ${isCritical ? "border-red-400 bg-red-50 hover:border-red-500" : "border-rw-stone-line bg-white hover:border-rw-brass/50"}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span

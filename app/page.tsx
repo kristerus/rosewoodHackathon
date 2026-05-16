@@ -36,20 +36,24 @@ function extractLearnedPreference(ticket: { intent: string; action_required: str
 
 const SAMPLE_TRANSCRIPTS: { label: string; text: string }[] = [
   {
-    label: "Restaurant rec",
-    text: "Mr. Chen in 412 is asking for a quiet sushi spot tonight, around 8pm, walking distance preferred — please book if possible.",
+    label: "Scenario 2 — Urgent Maintenance",
+    text: "Mr. Chen in 412 — his AC is making a grinding noise and the room won't go below 23 degrees. He's got an early flight, he's not happy. Get someone up here now.",
   },
   {
-    label: "Housekeeping",
-    text: "Ms. Marchetti in 808 needs fresh peonies replaced and an extra duvet brought up before turndown.",
+    label: "Scenario 1 — Returning Legacy Guest",
+    text: "Mrs. Whitfield is here for the week. She mentioned the gardenias from her last stay were perfect — please make sure we have the same arrangement in 1102 before she comes down for tea at four.",
   },
   {
-    label: "Engineering",
-    text: "Dr. Patel in 215 says the AC in his room is rattling and won't go below 72 — can engineering take a look this morning?",
+    label: "Scenario 5 — Allergy Alert",
+    text: "Heads up — Mr. Chen called from the car, he wants the welcome amenity in 412 changed. No nuts in anything, not even on the cheese board. He says last time there were almonds and he had to send it back.",
   },
   {
-    label: "Extra towels",
-    text: "Mr. Chen in room 412 requested extra towels — he always prefers having three sets.",
+    label: "Scenario 3 — Dietary Restriction",
+    text: "Dr. Patel at table 14 is here for the cardiology conference all week. He needs kosher meals for breakfast and dinner every day — please coordinate with the kitchen and make sure room service has the same note.",
+  },
+  {
+    label: "Scenario 4 — Housekeeping Preference",
+    text: "Sofia in 808 says the lilies are wilting — swap them for fresh stems, white peonies if we have them, before turndown. She's back around seven.",
   },
 ];
 
@@ -245,10 +249,19 @@ export default function Home() {
           <Pill label="Opera PMS" status="online" />
           <Pill label="Anthropic" status="online" />
         </div>
-        <div className="text-right">
-          <div className="eyebrow eyebrow-brass">Staff Console</div>
-          <div className="font-serif text-[15px] text-rw-forest leading-tight">
-            Front-of-House · Floor 1
+        <div className="flex items-center gap-5">
+          <button
+            type="button"
+            onClick={() => setShowArrival(true)}
+            className="rounded-full border border-rw-brass bg-rw-brass/10 text-rw-brass px-5 py-2 text-[11.5px] uppercase tracking-[0.16em] hover:bg-rw-brass hover:text-white transition-colors font-medium"
+          >
+            ✦ Incoming Booking
+          </button>
+          <div className="text-right">
+            <div className="eyebrow eyebrow-brass">Staff Console</div>
+            <div className="font-serif text-[15px] text-rw-forest leading-tight">
+              Front-of-House · Floor 1
+            </div>
           </div>
         </div>
       </header>
@@ -316,15 +329,6 @@ export default function Home() {
               </span>
             )}
           </div>
-
-          {/* Arrival simulation button */}
-          <button
-            type="button"
-            onClick={() => setShowArrival(true)}
-            className="rounded-full border border-rw-brass/40 bg-rw-brass/10 text-rw-brass px-4 py-1.5 text-[11.5px] uppercase tracking-[0.16em] hover:bg-rw-brass hover:text-white transition-colors"
-          >
-            ✦ Arrival Simulation
-          </button>
 
           <label className="flex items-center gap-3 ml-auto">
             <span className="eyebrow">Focused guest</span>

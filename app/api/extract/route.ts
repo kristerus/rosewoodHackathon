@@ -49,7 +49,8 @@ const TICKET_TOOL = {
       },
       urgency: {
         type: 'string',
-        enum: ['low', 'normal', 'high', 'urgent'],
+        enum: ['low', 'normal', 'high', 'urgent', 'critical'],
+        description: 'Use "critical" for safety/medical/major outage (safety risk, non-functional occupied room); "urgent" for severe time-pressure; "high" for time-sensitive (next 30 min); "normal" default; "low" for whenever-convenient.',
       },
       action_required: {
         type: 'string',
@@ -92,7 +93,7 @@ RULES:
 - Set guest_name and room_number to null UNLESS the transcript explicitly mentions them OR a known guest is the unambiguous referent.
 - guest_facing_message must be warm and on-brand. Example: "Mr. Chen, we'd love to help with restaurant recommendations — our concierge team will reach out shortly with options."
 - If the guest is in known_guests, weave a relevant preference or note into internal_notes (e.g. nut allergy, prefers quiet room).
-- urgency: "urgent" only for safety/medical/major outage; "high" for time-sensitive (next 30 min); "normal" default; "low" for whenever-convenient.
+- urgency: "critical" for safety risk or a non-functional occupied room (e.g. broken AC, no heat/water); "urgent" for severe time-pressure; "high" for time-sensitive (next 30 min); "normal" default; "low" for whenever-convenient.
 - Be concise. No fluff.
 
 You MUST call the create_ticket tool exactly once with your structured output.`;

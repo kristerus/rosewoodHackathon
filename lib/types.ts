@@ -1,5 +1,5 @@
 export type Department = 'concierge' | 'housekeeping' | 'fnb' | 'maintenance' | 'frontdesk';
-export type Urgency = 'low' | 'normal' | 'high' | 'urgent';
+export type Urgency = 'low' | 'normal' | 'high' | 'urgent' | 'critical';
 
 export interface Ticket {
   id: string;
