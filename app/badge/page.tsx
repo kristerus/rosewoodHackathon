@@ -54,42 +54,19 @@ export default function BadgePage() {
           ArrayLike<{ transcript: string }> & { isFinal: boolean }
         >;
       };
-      // Some browsers (Android Chrome) emit CUMULATIVE final results:
-      // each new result repeats everything said so far, e.g.
-      //   results[0]="Mr"
-      //   results[1]="Mr Chen"
-      //   results[2]="Mr Chen needs"
-      //   ...
-      // Naively concatenating gives "Mr Mr Chen Mr Chen needs ...".
-      //
-      // Approach: walk all isFinal results, and only accept a new one
-      // if its text doesn't already appear in our accumulated transcript.
-      // If the new text is a SUPERSET of the accumulated, replace it.
-      // If it's a totally new sentence, append.
-      const normalize = (s: string) =>
-        s.replace(/\s+/g, " ").trim().toLowerCase();
-      let final = "";
+      // Take only the LAST final result. Android Chrome continuously
+      // updates a single result entry as more speech comes in, so the
+      // last one is the complete utterance. Earlier ones are stale
+      // partial repeats of the same thing.
+      let last = "";
       for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        if (!r.isFinal) continue;
-        const raw = (r[0].transcript ?? "").replace(/\s+/g, " ").trim();
-        if (!raw) continue;
-        const cur = normalize(final);
-        const next = normalize(raw);
-        if (!cur) {
-          final = raw;
-        } else if (next.startsWith(cur)) {
-          // New result extends current → replace (cumulative case).
-          final = raw;
-        } else if (cur.startsWith(next) || cur.endsWith(next) || cur.includes(next)) {
-          // New result already contained in current → skip (duplicate).
-          continue;
-        } else {
-          // Genuinely new segment → append.
-          final = final + " " + raw;
+        if (r.isFinal) {
+          const t = (r[0].transcript ?? "").trim();
+          if (t) last = t;
         }
       }
-      finalRef.current = final.replace(/\s+/g, " ").trim();
+      finalRef.current = last.replace(/\s+/g, " ").trim();
     };
     rec.onerror = () => {
       setStatus({ kind: "error" });

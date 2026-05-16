@@ -76,41 +76,51 @@ export function dedupeTranscript(input: string): string {
   if (!input) return input;
   const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
   let s = normalize(input);
+  if (!s) return s;
 
-  // Pass 1: collapse "Mr Mr Chen" → "Mr Chen" and "Mr Chen Mr Chen" → "Mr Chen"
-  // Keep finding the longest immediate duplicate prefix in the remaining
-  // string and drop one copy. Bounded loop to avoid infinite work.
-  for (let iter = 0; iter < 50; iter++) {
-    let changed = false;
-    const words = s.split(" ");
-    // Try the longest possible repeated block first.
-    outer: for (let len = Math.floor(words.length / 2); len >= 1; len--) {
-      for (let start = 0; start + 2 * len <= words.length; start++) {
-        const a = words.slice(start, start + len).join(" ");
-        const b = words.slice(start + len, start + 2 * len).join(" ");
-        if (a === b) {
-          // Remove the duplicate block.
-          words.splice(start, len);
-          s = words.join(" ");
-          changed = true;
-          break outer;
+  // Pattern observed: Web Speech on Android emits cumulative-growing final
+  // results, so the transcript looks like:
+  //   "Mr Mr Chen Mr Chen Mr Chen needs Mr Chen needs towels ... Mr Chen needs towels in its room tonight"
+  // The TRUE sentence is the FINAL cumulative growth — i.e. everything from
+  // the LAST occurrence of the very first words onward.
+  //
+  // Algorithm: for prefix lengths 3 → 1, find the LAST occurrence of that
+  // opening phrase. If it appears later than at index 0, take the substring
+  // from that point. The longest prefix that repeats wins.
+  const words = s.split(" ");
+  if (words.length >= 4) {
+    const sLower = s.toLowerCase();
+    for (let plen = Math.min(3, words.length - 1); plen >= 1; plen--) {
+      const phrase = words.slice(0, plen).join(" ").toLowerCase();
+      let lastIdx = 0;
+      let from = 1;
+      while (true) {
+        const idx = sLower.indexOf(phrase, from);
+        if (idx === -1) break;
+        // Must be at a word boundary.
+        if (idx === 0 || sLower[idx - 1] === " ") {
+          // And the match must end at a word boundary too.
+          const endChar = sLower[idx + phrase.length];
+          if (endChar === undefined || endChar === " ") {
+            lastIdx = idx;
+          }
         }
+        from = idx + 1;
+      }
+      if (lastIdx > 0) {
+        s = s.slice(lastIdx);
+        break;
       }
     }
-    if (!changed) break;
   }
 
-  // Pass 2: collapse cumulative growth like "A A B A B C" → "A B C"
-  // by walking tokens and removing a token if the running accumulator
-  // already ends with the same sequence ending at that position.
+  // Polish pass: remove any remaining adjacent duplicate word.
   const finalWords: string[] = [];
-  const tokens = s.split(" ");
-  for (const t of tokens) {
+  for (const w of s.split(" ")) {
     const last = finalWords[finalWords.length - 1];
-    if (last === t) continue; // drop adjacent dup
-    finalWords.push(t);
+    if (last && last.toLowerCase() === w.toLowerCase()) continue;
+    finalWords.push(w);
   }
-  s = finalWords.join(" ");
 
-  return normalize(s);
+  return normalize(finalWords.join(" "));
 }
