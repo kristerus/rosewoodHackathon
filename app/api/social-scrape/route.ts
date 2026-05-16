@@ -300,12 +300,18 @@ export async function POST(req: Request) {
   }
 
   const apifyKey = process.env.APIFY_API_KEY;
-  const hasRealHandles = social_handles && Object.values(social_handles).some(Boolean);
+  // Prefer explicit request handles; fall back to handles stored on the guest object
+  const effectiveHandles = (social_handles && Object.values(social_handles).some(Boolean))
+    ? social_handles
+    : (guest.socialHandles && Object.values(guest.socialHandles).some(Boolean))
+      ? guest.socialHandles
+      : undefined;
+  const hasRealHandles = Boolean(effectiveHandles);
 
   // Real Apify path
   if (apifyKey && hasRealHandles) {
     try {
-      const { posts: rawPosts, profilePhoto } = await scrapeWithApify(social_handles!, apifyKey);
+      const { posts: rawPosts, profilePhoto } = await scrapeWithApify(effectiveHandles!, apifyKey);
       if (rawPosts.length === 0) {
         return NextResponse.json(
           { error: 'Scraping returned no results — check handles and Apify actor availability' },

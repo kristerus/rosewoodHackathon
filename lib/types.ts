@@ -60,6 +60,7 @@ export interface Guest {
   research_brief?: GuestBrief;
   interaction_log: Ticket[];
   profilePhoto?: string;
+  socialHandles?: { instagram?: string; linkedin?: string; twitter?: string };
 }
 
 export type ConfidenceLevel = 'low' | 'medium' | 'high';

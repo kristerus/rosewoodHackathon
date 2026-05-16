@@ -215,7 +215,14 @@ async function discoverWithApify(
   return { posts, profilePhoto };
 }
 
-function buildMinimalGuest(name: string, id: string, today: string, checkOut: string): Guest {
+function buildMinimalGuest(
+  name: string,
+  id: string,
+  today: string,
+  checkOut: string,
+  handles?: { instagram?: string; linkedin?: string },
+): Guest {
+  const hasHandles = handles && Object.values(handles).some(Boolean);
   return {
     id,
     name,
@@ -225,11 +232,14 @@ function buildMinimalGuest(name: string, id: string, today: string, checkOut: st
     preferences: [],
     learnedPreferences: [],
     past_stays: 0,
-    notes: 'No public profile found — manual data entry needed.',
+    notes: hasHandles
+      ? 'Social handles on file — click Scan Social Media to enrich this profile.'
+      : 'No public profile found — manual data entry needed.',
     linkedInSummary: undefined,
     recentNews: [],
     interests: [],
     interaction_log: [],
+    ...(hasHandles && { socialHandles: handles }),
   };
 }
 
@@ -252,11 +262,15 @@ export async function POST(req: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const checkOut = new Date(Date.now() + 3 * 86400_000).toISOString().slice(0, 10);
 
-  // Without Apify: return empty shell — no fabricated data
+  const storedHandles = (social_handles?.instagram || social_handles?.linkedin)
+    ? { instagram: social_handles.instagram, linkedin: social_handles.linkedin }
+    : undefined;
+
+  // Without Apify: return shell with handles stored — no fabricated data
   const apifyKey = process.env.APIFY_API_KEY;
   if (!apifyKey) {
     return NextResponse.json({
-      guest: buildMinimalGuest(trimmedName, id, today, checkOut),
+      guest: buildMinimalGuest(trimmedName, id, today, checkOut, storedHandles),
       source: 'empty',
     });
   }
@@ -272,20 +286,19 @@ export async function POST(req: Request) {
     // scraping failed entirely
   }
 
-  // No real data found — return minimal shell, don't fabricate
+  // No real data found — return shell with handles stored, don't fabricate
   if (discoveredPosts.length === 0) {
     return NextResponse.json({
-      guest: { ...buildMinimalGuest(trimmedName, id, today, checkOut), ...(profilePhoto && { profilePhoto }) },
+      guest: { ...buildMinimalGuest(trimmedName, id, today, checkOut, storedHandles), ...(profilePhoto && { profilePhoto }) },
       source: 'apify_empty',
     });
   }
 
   // Real data found — use Claude to structure it (extraction only, no invention)
   if (!process.env.ANTHROPIC_API_KEY) {
-    // No Claude: return raw posts as recentNews without structuring
     return NextResponse.json({
       guest: {
-        ...buildMinimalGuest(trimmedName, id, today, checkOut),
+        ...buildMinimalGuest(trimmedName, id, today, checkOut, storedHandles),
         notes: 'Profile data found — AI structuring unavailable.',
         recentNews: discoveredPosts.slice(0, 4),
         ...(profilePhoto && { profilePhoto }),
@@ -347,6 +360,7 @@ Call extract_guest_profile now.`,
       dietaryRestrictions: extracted.dietary_signals.length > 0 ? extracted.dietary_signals : undefined,
       interaction_log: [],
       ...(profilePhoto && { profilePhoto }),
+      ...(storedHandles && { socialHandles: storedHandles }),
     };
 
     return NextResponse.json({ guest, source: 'apify' });
@@ -354,7 +368,7 @@ Call extract_guest_profile now.`,
     // Claude failed — return raw scraped data without structuring
     return NextResponse.json({
       guest: {
-        ...buildMinimalGuest(trimmedName, id, today, checkOut),
+        ...buildMinimalGuest(trimmedName, id, today, checkOut, storedHandles),
         notes: 'Profile found via social scraping.',
         recentNews: discoveredPosts.slice(0, 4),
         ...(profilePhoto && { profilePhoto }),
