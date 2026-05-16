@@ -402,31 +402,58 @@ export default function GuestSidebar({
             </span>
           }
         >
-          {guest.research_brief ? (
-            <BriefBlock brief={guest.research_brief} guest={guest} />
-          ) : (
-            <div className="rounded-sm border border-dashed border-ora-hairline-2 px-3 py-3">
-              <p className="text-[11.5px] text-ora-muted leading-relaxed">
-                Pull a 360° view from public sources — role, recent news,
-                conversation starters and inferred preferences.
-              </p>
-              <button
-                type="button"
-                onClick={onGenerateBrief}
-                disabled={isGeneratingBrief}
-                className="ora-btn ora-btn-primary mt-2.5"
-              >
-                {isGeneratingBrief ? (
-                  <>
+          {(() => {
+            const hasBrief = !!guest.research_brief;
+            const hasScrape =
+              !!guest.linkedInSummary ||
+              (guest.interests?.length ?? 0) > 0 ||
+              (guest.recentNews?.length ?? 0) > 0 ||
+              (guest.learnedPreferences?.length ?? 0) > 0;
+            const hasAny = hasBrief || hasScrape;
+
+            return (
+              <div className="space-y-2.5">
+                {/* Loading banner — always visible during fetch so user gets feedback */}
+                {isGeneratingBrief && (
+                  <div className="rounded-sm border border-ora-blue/40 bg-ora-blue-soft px-3 py-2 flex items-center gap-2">
                     <Spinner />
-                    Researching the web…
-                  </>
-                ) : (
-                  <>Research</>
+                    <span className="text-[11.5px] text-ora-blue">
+                      Researching the web + scraping socials…
+                    </span>
+                  </div>
                 )}
-              </button>
-            </div>
-          )}
+
+                {/* The data, whatever subset we have */}
+                {hasAny ? (
+                  <BriefBlock brief={guest.research_brief} guest={guest} />
+                ) : !isGeneratingBrief ? (
+                  <p className="text-[11.5px] text-ora-muted leading-relaxed">
+                    Pull a 360° view from public sources — role, recent news,
+                    conversation starters and inferred preferences.
+                  </p>
+                ) : null}
+
+                {/* Re-runnable trigger button — ALWAYS visible */}
+                <button
+                  type="button"
+                  onClick={onGenerateBrief}
+                  disabled={isGeneratingBrief}
+                  className="ora-btn ora-btn-primary"
+                >
+                  {isGeneratingBrief ? (
+                    <>
+                      <Spinner />
+                      Researching…
+                    </>
+                  ) : hasAny ? (
+                    <>↻ Re-Research</>
+                  ) : (
+                    <>Research</>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </Section>
 
         <div className="hairline mx-4" />
@@ -631,8 +658,14 @@ function StatTile({
   );
 }
 
-function BriefBlock({ brief, guest }: { brief: GuestBrief; guest: Guest }) {
-  const wa = brief.welcomeActions;
+function BriefBlock({
+  brief,
+  guest,
+}: {
+  brief: GuestBrief | undefined;
+  guest: Guest;
+}) {
+  const wa = brief?.welcomeActions;
   const hasWelcome =
     wa &&
     ((wa.priorityActions && wa.priorityActions.length > 0) ||
@@ -640,17 +673,19 @@ function BriefBlock({ brief, guest }: { brief: GuestBrief; guest: Guest }) {
       (wa.diningPrep && wa.diningPrep.length > 0));
   return (
     <div className="space-y-3 ora-card px-3 py-3">
-      <p className="text-[12px] leading-relaxed text-ora-charcoal">
-        {brief.summary}
-      </p>
-      {brief.professional && (
+      {brief?.summary && (
+        <p className="text-[12px] leading-relaxed text-ora-charcoal">
+          {brief.summary}
+        </p>
+      )}
+      {brief?.professional && (
         <p className="text-[11px] text-ora-muted italic leading-relaxed">
           {brief.professional}
         </p>
       )}
 
       {/* High-priority tips first */}
-      {brief.riskFlags && brief.riskFlags.length > 0 && (
+      {brief?.riskFlags && brief.riskFlags.length > 0 && (
         <div className="rounded-sm border border-ora-red/40 bg-ora-red-soft px-2.5 py-1.5">
           <div className="text-[9.5px] uppercase tracking-wider font-bold text-ora-red-deep mb-1">
             ⚠ Risk Flags
@@ -682,19 +717,19 @@ function BriefBlock({ brief, guest }: { brief: GuestBrief; guest: Guest }) {
         </div>
       )}
 
-      {brief.personalizedExperiences && brief.personalizedExperiences.length > 0 && (
+      {brief?.personalizedExperiences && brief.personalizedExperiences.length > 0 && (
         <BriefList title="Personalized Experiences" items={brief.personalizedExperiences} />
       )}
 
-      {brief.conversation_starters?.length > 0 && (
+      {brief?.conversation_starters && brief.conversation_starters.length > 0 && (
         <BriefList title="Conversation Starters" items={brief.conversation_starters} />
       )}
 
-      {brief.preferences_inferred?.length > 0 && (
+      {brief?.preferences_inferred && brief.preferences_inferred.length > 0 && (
         <BriefList title="Inferred Preferences" items={brief.preferences_inferred} />
       )}
 
-      {brief.recent_news?.length > 0 && (
+      {brief?.recent_news && brief.recent_news.length > 0 && (
         <BriefList title="Recent News" items={brief.recent_news} />
       )}
 
