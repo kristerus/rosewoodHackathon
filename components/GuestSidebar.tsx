@@ -11,7 +11,6 @@ import type {
 } from "@/lib/types";
 import { useAppStore, type Prediction } from "@/lib/store";
 import { useToast } from "@/components/Toaster";
-import ResearchImagesGrid, { useResearchImages } from "@/components/ResearchImagesGrid";
 import IWantToButton from "@/components/IWantToButton";
 
 interface GuestSidebarProps {
@@ -128,13 +127,6 @@ export default function GuestSidebar({
   const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
   const { toast } = useToast();
 
-  // Tavily image scrape — driven from the "Research" button below.
-  const {
-    images: researchImages,
-    loading: imagesLoading,
-    fetch: fetchImages,
-  } = useResearchImages(guest?.name);
-
   // On guest focus change, hydrate metadata from the server.
   useEffect(() => {
     if (!guest?.id) return;
@@ -201,10 +193,7 @@ export default function GuestSidebar({
           items={[
             {
               label: "Generate Research",
-              onClick: () => {
-                onGenerateBrief();
-                void fetchImages({ roleHint: guest.notes ?? guest.preferences?.join(", ") });
-              },
+              onClick: () => onGenerateBrief(),
             },
             {
               label: "Edit Pre-Arrival",
@@ -414,21 +403,7 @@ export default function GuestSidebar({
           }
         >
           {guest.research_brief ? (
-            <>
-              <BriefBlock brief={guest.research_brief} />
-              {(researchImages.length > 0 || imagesLoading) && (
-                <div className="mt-2.5">
-                  <div className="ora-label mb-1">Photos</div>
-                  {imagesLoading ? (
-                    <div className="text-[11px] text-ora-muted italic py-2">
-                      Searching photos…
-                    </div>
-                  ) : (
-                    <ResearchImagesGrid images={researchImages} />
-                  )}
-                </div>
-              )}
-            </>
+            <BriefBlock brief={guest.research_brief} />
           ) : (
             <div className="rounded-sm border border-dashed border-ora-hairline-2 px-3 py-3">
               <p className="text-[11.5px] text-ora-muted leading-relaxed">
@@ -437,12 +412,7 @@ export default function GuestSidebar({
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  onGenerateBrief();
-                  void fetchImages({
-                    roleHint: guest.notes ?? guest.preferences?.join(", "),
-                  });
-                }}
+                onClick={onGenerateBrief}
                 disabled={isGeneratingBrief}
                 className="ora-btn ora-btn-primary mt-2.5"
               >
@@ -455,16 +425,6 @@ export default function GuestSidebar({
                   <>Research</>
                 )}
               </button>
-              {imagesLoading && (
-                <div className="mt-2 text-[11px] text-ora-muted italic">
-                  Searching photos…
-                </div>
-              )}
-              {!imagesLoading && researchImages.length > 0 && (
-                <div className="mt-2.5">
-                  <ResearchImagesGrid images={researchImages} />
-                </div>
-              )}
             </div>
           )}
         </Section>
