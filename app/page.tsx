@@ -20,6 +20,10 @@ import NewSRModal from "@/components/NewSRModal";
 import PropertyPicker from "@/components/PropertyPicker";
 import FolioTab from "@/components/FolioTab";
 import SetupTab from "@/components/SetupTab";
+import ReservationsTab from "@/components/ReservationsTab";
+import GuestProfilesTab from "@/components/GuestProfilesTab";
+import ActivitiesTab from "@/components/ActivitiesTab";
+import ReportsTab from "@/components/ReportsTab";
 import AddGuestModal, { type NewGuestInput } from "@/components/AddGuestModal";
 import ManualInputPanel, { type ManualGuestData } from "@/components/ManualInputPanel";
 import { ToasterProvider, useToast } from "@/components/Toaster";
@@ -843,38 +847,34 @@ function Home() {
             {showBadgeQR && <BadgeQRCard onClose={() => setShowBadgeQR(false)} />}
           </div>
         ) : activeTab === "reservations" ? (
-          <ReservationsTable
+          <ReservationsTab
             onRowClick={(id) => {
               handleFocusGuest(id);
               setActiveTab("service");
             }}
           />
         ) : activeTab === "guests" ? (
-          <GuestProfilesTable
+          <GuestProfilesTab
             onRowClick={(id) => {
               handleFocusGuest(id);
               setActiveTab("service");
             }}
           />
         ) : activeTab === "activities" ? (
-          <ActivitiesTable />
+          <ActivitiesTab />
         ) : activeTab === "folio" ? (
-          <div className="h-full overflow-y-auto scroll-rw p-6 bg-white">
-            <FolioTab
-              guests={guests}
-              focusedGuestId={focusedGuestId}
-              onFocusGuest={(id) => {
-                focusGuest(id);
-                setActiveTab("folio");
-              }}
-            />
-          </div>
+          <FolioTab
+            guests={guests}
+            focusedGuestId={focusedGuestId}
+            onFocusGuest={(id) => {
+              focusGuest(id);
+              setActiveTab("folio");
+            }}
+          />
         ) : activeTab === "reports" ? (
           <ReportsTab />
         ) : (
-          <div className="h-full overflow-y-auto scroll-rw p-6 bg-white">
-            <SetupTab />
-          </div>
+          <SetupTab />
         )}
       </main>
 
@@ -1025,7 +1025,10 @@ function BadgeQRCard({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const url = `${window.location.origin}/badge`;
+    // Prefer the production URL so phones can scan from any environment
+    // (local dev included). Falls back to window.location.origin only if
+    // the production domain isn't reachable.
+    const url = "https://hotel.eliaspfeffer.de/badge";
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTargetUrl(url);
     QRCode.toDataURL(url, {
@@ -1114,395 +1117,3 @@ function BadgeQRCard({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ---------------- Reservations table tab ---------------- */
-
-type SortDir = "asc" | "desc";
-
-function useSort<T extends string>(
-  initial: T,
-  initialDir: SortDir = "asc",
-) {
-  const [col, setCol] = useState<T>(initial);
-  const [dir, setDir] = useState<SortDir>(initialDir);
-  const toggle = (next: T) => {
-    if (next === col) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setCol(next);
-      setDir("asc");
-    }
-  };
-  return { col, dir, toggle };
-}
-
-function SortHeader<T extends string>({
-  label,
-  col,
-  activeCol,
-  dir,
-  onClick,
-}: {
-  label: string;
-  col: T;
-  activeCol: T;
-  dir: SortDir;
-  onClick: (c: T) => void;
-}) {
-  const active = activeCol === col;
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(col)}
-      className={`flex items-center gap-1 ora-label hover:text-ora-charcoal ${
-        active ? "text-ora-charcoal" : ""
-      }`}
-    >
-      <span>{label}</span>
-      {active && (
-        <svg
-          width="9"
-          height="9"
-          viewBox="0 0 10 10"
-          fill="currentColor"
-          aria-hidden
-          className={dir === "desc" ? "rotate-180" : ""}
-        >
-          <path d="M5 2l3 5H2l3-5z" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
-function compareStr(a: string, b: string, dir: SortDir): number {
-  const r = a.localeCompare(b);
-  return dir === "asc" ? r : -r;
-}
-function compareNum(a: number, b: number, dir: SortDir): number {
-  return dir === "asc" ? a - b : b - a;
-}
-
-function confirmationNumber(id: string): string {
-  let n = 0;
-  for (let i = 0; i < id.length; i++) n = (n * 33 + id.charCodeAt(i)) >>> 0;
-  return `RES-${(n % 1_000_000).toString().padStart(6, "0")}`;
-}
-function profileId(id: string): string {
-  let n = 0;
-  for (let i = 0; i < id.length; i++) n = (n * 31 + id.charCodeAt(i)) >>> 0;
-  return `P-${(n % 1_000_000).toString().padStart(6, "0")}`;
-}
-function shortSr(id: string): string {
-  let n = 0;
-  for (let i = 0; i < id.length; i++) n = (n * 33 + id.charCodeAt(i)) >>> 0;
-  return `SR-${(n % 100000).toString().padStart(5, "0")}`;
-}
-
-function ReservationsTable({ onRowClick }: { onRowClick: (id: string) => void }) {
-  const guests = useAppStore((s) => s.guests);
-  type Col =
-    | "conf"
-    | "name"
-    | "room"
-    | "status"
-    | "ci"
-    | "co"
-    | "tier"
-    | "stays";
-  const { col, dir, toggle } = useSort<Col>("name");
-
-  const sorted = useMemo(() => {
-    const arr = [...guests];
-    arr.sort((a, b) => {
-      switch (col) {
-        case "conf":
-          return compareStr(confirmationNumber(a.id), confirmationNumber(b.id), dir);
-        case "name":
-          return compareStr(a.name, b.name, dir);
-        case "room":
-          return compareStr(a.room ?? "", b.room ?? "", dir);
-        case "status":
-          return compareStr("IN-HOUSE", "IN-HOUSE", dir);
-        case "ci":
-          return compareStr(a.booking_dates.check_in, b.booking_dates.check_in, dir);
-        case "co":
-          return compareStr(a.booking_dates.check_out, b.booking_dates.check_out, dir);
-        case "tier":
-          return compareStr(a.vip_tier, b.vip_tier, dir);
-        case "stays":
-          return compareNum(a.past_stays, b.past_stays, dir);
-        default:
-          return 0;
-      }
-    });
-    return arr;
-  }, [guests, col, dir]);
-
-  return (
-    <div className="h-full bg-white overflow-y-auto scroll-rw">
-      <TableHeader title="Reservations" subtitle={`${guests.length} in-house guests`} />
-      <table className="w-full text-[12px]">
-        <thead className="bg-ora-bg sticky top-[44px] z-10">
-          <tr className="border-b border-ora-hairline">
-            <Th><SortHeader label="Confirmation #" col="conf" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Guest" col="name" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Room" col="room" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Status" col="status" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Check-in" col="ci" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Check-out" col="co" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Tier" col="tier" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Past Stays" col="stays" activeCol={col} dir={dir} onClick={toggle} /></Th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((g) => (
-            <tr
-              key={g.id}
-              onClick={() => onRowClick(g.id)}
-              className="border-b border-ora-hairline hover:bg-ora-row-hover cursor-pointer"
-            >
-              <Td mono>{confirmationNumber(g.id)}</Td>
-              <Td bold>{g.name}</Td>
-              <Td>{g.room ?? "—"}</Td>
-              <Td>
-                <span className="ora-chip ora-chip-green">IN-HOUSE</span>
-              </Td>
-              <Td>{g.booking_dates.check_in}</Td>
-              <Td>{g.booking_dates.check_out}</Td>
-              <Td>
-                <span className="ora-chip ora-chip-grey">{g.vip_tier.toUpperCase()}</span>
-              </Td>
-              <Td num>{g.past_stays}</Td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function GuestProfilesTable({ onRowClick }: { onRowClick: (id: string) => void }) {
-  const guests = useAppStore((s) => s.guests);
-  type Col = "pid" | "name" | "tier" | "stays" | "last" | "brief";
-  const { col, dir, toggle } = useSort<Col>("name");
-  const sorted = useMemo(() => {
-    const arr = [...guests];
-    arr.sort((a, b) => {
-      switch (col) {
-        case "pid":
-          return compareStr(profileId(a.id), profileId(b.id), dir);
-        case "name":
-          return compareStr(a.name, b.name, dir);
-        case "tier":
-          return compareStr(a.vip_tier, b.vip_tier, dir);
-        case "stays":
-          return compareNum(a.past_stays, b.past_stays, dir);
-        case "last":
-          return compareStr(a.booking_dates.check_in, b.booking_dates.check_in, dir);
-        case "brief":
-          return compareNum(a.research_brief ? 1 : 0, b.research_brief ? 1 : 0, dir);
-        default:
-          return 0;
-      }
-    });
-    return arr;
-  }, [guests, col, dir]);
-
-  return (
-    <div className="h-full bg-white overflow-y-auto scroll-rw">
-      <TableHeader title="Guest Profiles" subtitle={`${guests.length} profiles · Click a row to focus`} />
-      <table className="w-full text-[12px]">
-        <thead className="bg-ora-bg sticky top-[44px] z-10">
-          <tr className="border-b border-ora-hairline">
-            <Th><SortHeader label="Profile #" col="pid" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Name" col="name" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Tier" col="tier" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Past Stays" col="stays" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="Last Stay" col="last" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            <Th><SortHeader label="AI Brief" col="brief" activeCol={col} dir={dir} onClick={toggle} /></Th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((g) => (
-            <tr
-              key={g.id}
-              onClick={() => onRowClick(g.id)}
-              className="border-b border-ora-hairline hover:bg-ora-row-hover cursor-pointer"
-            >
-              <Td mono>{profileId(g.id)}</Td>
-              <Td bold>{g.name}</Td>
-              <Td>
-                <span className="ora-chip ora-chip-grey">{g.vip_tier.toUpperCase()}</span>
-              </Td>
-              <Td num>{g.past_stays}</Td>
-              <Td>{g.booking_dates.check_in}</Td>
-              <Td>
-                {g.research_brief ? (
-                  <span className="ora-chip ora-chip-green">YES</span>
-                ) : (
-                  <span className="ora-chip ora-chip-grey">—</span>
-                )}
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ActivitiesTable() {
-  const tickets = useAppStore((s) => s.tickets);
-  type Col = "time" | "sr" | "dept" | "subject" | "guest" | "status";
-  const { col, dir, toggle } = useSort<Col>("time", "desc");
-  const sorted = useMemo(() => {
-    const arr = [...tickets];
-    arr.sort((a, b) => {
-      switch (col) {
-        case "time":
-          return compareStr(a.timestamp, b.timestamp, dir);
-        case "sr":
-          return compareStr(shortSr(a.id), shortSr(b.id), dir);
-        case "dept":
-          return compareStr(a.department, b.department, dir);
-        case "subject":
-          return compareStr(a.intent, b.intent, dir);
-        case "guest":
-          return compareStr(a.guest_name ?? "", b.guest_name ?? "", dir);
-        case "status":
-          return compareStr(a.status ?? "open", b.status ?? "open", dir);
-        default:
-          return 0;
-      }
-    });
-    return arr;
-  }, [tickets, col, dir]);
-
-  return (
-    <div className="h-full bg-white overflow-y-auto scroll-rw">
-      <TableHeader title="Activity Log" subtitle={`${tickets.length} service request${tickets.length === 1 ? "" : "s"} on record`} />
-      {tickets.length === 0 ? (
-        <div className="px-6 py-16 text-center text-[12.5px] text-ora-muted">
-          No activity yet. Trigger a sample SR or use the Connect Badge.
-        </div>
-      ) : (
-        <table className="w-full text-[12px]">
-          <thead className="bg-ora-bg sticky top-[44px] z-10">
-            <tr className="border-b border-ora-hairline">
-              <Th><SortHeader label="Time" col="time" activeCol={col} dir={dir} onClick={toggle} /></Th>
-              <Th><SortHeader label="SR #" col="sr" activeCol={col} dir={dir} onClick={toggle} /></Th>
-              <Th><SortHeader label="Department" col="dept" activeCol={col} dir={dir} onClick={toggle} /></Th>
-              <Th><SortHeader label="Subject" col="subject" activeCol={col} dir={dir} onClick={toggle} /></Th>
-              <Th><SortHeader label="Guest" col="guest" activeCol={col} dir={dir} onClick={toggle} /></Th>
-              <Th><SortHeader label="Status" col="status" activeCol={col} dir={dir} onClick={toggle} /></Th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((t) => {
-              const status = t.status ?? "open";
-              const chip =
-                status === "resolved"
-                  ? "ora-chip-green"
-                  : status === "escalated"
-                    ? "ora-chip-red"
-                    : status === "in-progress"
-                      ? "ora-chip-blue"
-                      : "ora-chip-amber";
-              return (
-                <tr key={t.id} className="border-b border-ora-hairline hover:bg-ora-row-hover">
-                  <Td num>{new Date(t.timestamp).toLocaleString()}</Td>
-                  <Td mono>{shortSr(t.id)}</Td>
-                  <Td>{t.department}</Td>
-                  <Td bold>{t.intent}</Td>
-                  <Td>{t.guest_name ?? "—"}</Td>
-                  <Td><span className={`ora-chip ${chip}`}>{status.toUpperCase()}</span></Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-function ReportsTab() {
-  const tickets = useAppStore((s) => s.tickets);
-  const total = tickets.length;
-  const resolved = tickets.filter((t) => t.status === "resolved").length;
-  const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-
-  return (
-    <div className="h-full bg-white overflow-y-auto scroll-rw">
-      <TableHeader title="Reports" subtitle="Live mock KPIs · refreshes when SRs change" />
-      <div className="p-5 grid grid-cols-3 gap-4 max-w-[900px]">
-        <KpiTile label="SRs Today" value={String(total)} />
-        <KpiTile label="Resolved Rate" value={`${rate}%`} />
-        <KpiTile label="Avg Routing Time" value="1.4s" suffix="via Anthropic" />
-      </div>
-      <div className="px-5 pb-5">
-        <div className="ora-card p-4 max-w-[900px]">
-          <div className="ora-label mb-2">Hourly SR volume (mock)</div>
-          <svg viewBox="0 0 320 60" width="100%" height="60" className="text-ora-red">
-            <polyline
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              points="0,40 30,32 60,38 90,18 120,28 150,12 180,22 210,30 240,16 270,24 300,8 320,18"
-            />
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiTile({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
-  return (
-    <div className="ora-card px-4 py-3">
-      <div className="ora-label">{label}</div>
-      <div className="mt-1 text-[22px] font-semibold text-ora-charcoal tabular-nums leading-none">
-        {value}
-      </div>
-      {suffix && (
-        <div className="mt-1 text-[11px] text-ora-muted">{suffix}</div>
-      )}
-    </div>
-  );
-}
-
-function TableHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="px-5 py-3 border-b border-ora-hairline bg-white sticky top-0 z-10">
-      <h2 className="text-[14px] font-semibold text-ora-charcoal">{title}</h2>
-      <p className="mt-0.5 text-[11.5px] text-ora-muted">{subtitle}</p>
-    </div>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th className="text-left font-normal px-3 py-1.5 align-middle">{children}</th>
-  );
-}
-
-function Td({
-  children,
-  mono,
-  bold,
-  num,
-}: {
-  children: React.ReactNode;
-  mono?: boolean;
-  bold?: boolean;
-  num?: boolean;
-}) {
-  return (
-    <td
-      className={`px-3 py-1.5 align-middle text-ora-charcoal ${
-        mono ? "font-mono tabular-nums" : ""
-      } ${bold ? "font-semibold" : ""} ${num ? "tabular-nums" : ""}`}
-    >
-      {children}
-    </td>
-  );
-}

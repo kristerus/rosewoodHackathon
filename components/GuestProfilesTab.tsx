@@ -130,7 +130,7 @@ export default function GuestProfilesTab({ onRowClick }: GuestProfilesTabProps) 
         phone: phoneFor(g.id),
         loyalty: loyaltyNumber(g.id),
         ltv: lifetimeSpend(g),
-        last: lastStayDate(g),
+        lastStay: lastStayDate(g),
         vip: g.vip_tier === "platinum" || g.vip_tier === "legacy",
         repeat: g.past_stays >= 3,
         intl: hashId(g.id) % 4 === 0,
@@ -185,7 +185,7 @@ export default function GuestProfilesTab({ onRowClick }: GuestProfilesTabProps) 
         case "ltv":
           return compareNum(a.ltv, b.ltv, dir);
         case "lastStay":
-          return compareStr(a.last, b.last, dir);
+          return compareStr(a.lastStay, b.lastStay, dir);
         default:
           return 0;
       }
@@ -279,7 +279,7 @@ export default function GuestProfilesTab({ onRowClick }: GuestProfilesTabProps) 
                   </td>
                   <td className="right mono">{g.past_stays}</td>
                   <td className="right mono">{fmtMoney(r.ltv)}</td>
-                  <td className="mono">{r.last}</td>
+                  <td className="mono">{r.lastStay}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
