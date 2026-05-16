@@ -24,6 +24,9 @@ export interface WelcomeActions {
   preArrivalDrink: string;
   welcomeNote: string;
   conciergeAlert: string;
+  priorityActions?: string[];
+  amenities?: string[];
+  diningPrep?: string[];
 }
 
 export interface GuestBrief {
