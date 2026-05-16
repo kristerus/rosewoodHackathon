@@ -8,7 +8,7 @@ type Status =
   | { kind: "idle" }
   | { kind: "listening" }
   | { kind: "routing" }
-  | { kind: "routed" }
+  | { kind: "routed"; department: string; guestLabel?: string }
   | { kind: "error" };
 
 interface SpeechRecognitionLike {
@@ -97,17 +97,27 @@ export default function BadgePage() {
         body: JSON.stringify({ transcript: text, staff_id: STAFF_ID }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await res.json();
-      setStatus({ kind: "routed" });
+      const data = (await res.json()) as {
+        ticket?: {
+          department?: string;
+          guest_name?: string | null;
+          room_number?: string | null;
+        };
+      };
+      const dept = data.ticket?.department ?? "frontdesk";
+      const guestLabel = data.ticket?.room_number
+        ? `Room ${data.ticket.room_number}`
+        : data.ticket?.guest_name ?? undefined;
+      setStatus({ kind: "routed", department: dept, guestLabel });
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         try {
-          navigator.vibrate?.(180);
+          navigator.vibrate?.([60, 40, 120]);
         } catch {}
       }
       if (routedTimerRef.current) clearTimeout(routedTimerRef.current);
       routedTimerRef.current = setTimeout(() => {
         setStatus({ kind: "idle" });
-      }, 1800);
+      }, 3000);
     } catch {
       setStatus({ kind: "error" });
       if (routedTimerRef.current) clearTimeout(routedTimerRef.current);
@@ -183,7 +193,7 @@ export default function BadgePage() {
 
   return (
     <main
-      className={`min-h-[100dvh] w-full flex items-center justify-center transition-colors duration-500 ease-out select-none touch-manipulation ${bgClass}`}
+      className={`min-h-[100dvh] w-full flex flex-col items-center justify-center gap-8 transition-colors duration-500 ease-out select-none touch-manipulation ${bgClass}`}
     >
       <button
         type="button"
@@ -230,6 +240,53 @@ export default function BadgePage() {
         </span>
       </button>
 
+      {/* Status caption — only on routed/routing/error to keep it minimal */}
+      {isRouted && (
+        <div className="text-center px-8 fade-in-up">
+          <div
+            className="text-[11px] uppercase tracking-[0.22em] text-[#b8945f]"
+            style={{ fontFamily: "system-ui, sans-serif" }}
+          >
+            Routed
+          </div>
+          <div
+            className="mt-1 text-[28px] font-medium leading-tight text-[#f7f3ec]"
+            style={{
+              fontFamily:
+                '"Cormorant Garamond", "Playfair Display", Georgia, serif',
+            }}
+          >
+            {DEPT_LABEL[status.department] ?? status.department}
+          </div>
+          {status.guestLabel && (
+            <div
+              className="mt-1 text-[12px] text-[#f7f3ec] opacity-70"
+              style={{ fontFamily: "system-ui, sans-serif" }}
+            >
+              {status.guestLabel}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isRouting && (
+        <div
+          className="text-[12px] uppercase tracking-[0.22em] text-[#1a3a2e] opacity-60"
+          style={{ fontFamily: "system-ui, sans-serif" }}
+        >
+          Routing…
+        </div>
+      )}
+
+      {isError && (
+        <div
+          className="text-[12px] uppercase tracking-[0.22em] text-red-700 opacity-80"
+          style={{ fontFamily: "system-ui, sans-serif" }}
+        >
+          Failed — tap to retry
+        </div>
+      )}
+
       {supported === false && (
         <p
           className="fixed bottom-8 left-0 right-0 text-center text-[12px] text-[#1a3a2e] opacity-60 px-8"
@@ -241,3 +298,11 @@ export default function BadgePage() {
     </main>
   );
 }
+
+const DEPT_LABEL: Record<string, string> = {
+  concierge: "Concierge",
+  housekeeping: "Housekeeping",
+  fnb: "Food & Beverage",
+  maintenance: "Engineering",
+  frontdesk: "Front Desk",
+};
