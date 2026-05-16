@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
+import { TIER_RULES, validateGuestTier } from "@/lib/seed";
 
 export interface NewGuestInput {
   name: string;
@@ -9,6 +10,7 @@ export interface NewGuestInput {
   check_in: string;
   check_out: string;
   vip_tier: "standard" | "gold" | "platinum" | "legacy";
+  past_stays: number;
   notes?: string;
 }
 
@@ -44,6 +46,7 @@ export default function AddGuestModal({
   const [checkIn, setCheckIn] = useState(isoToday(0));
   const [checkOut, setCheckOut] = useState(isoToday(3));
   const [tier, setTier] = useState<NewGuestInput["vip_tier"]>("standard");
+  const [pastStays, setPastStays] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -55,20 +58,34 @@ export default function AddGuestModal({
       setCheckIn(isoToday(0));
       setCheckOut(isoToday(3));
       setTier("standard");
+      setPastStays(0);
       setNotes("");
       setError(null);
     }
   }, [open]);
 
-  const valid = useMemo(() => name.trim().length > 0, [name]);
+  const nameValid = useMemo(() => name.trim().length > 0, [name]);
+
+  const tierValidation = useMemo(
+    () => validateGuestTier(tier, Number.isFinite(pastStays) ? pastStays : 0),
+    [tier, pastStays],
+  );
+
+  const tierHint = TIER_RULES[tier].description;
+
+  const canSubmit = nameValid && tierValidation.ok;
 
   const submit = () => {
-    if (!valid) {
+    if (!nameValid) {
       setError("Guest name is required.");
       return;
     }
     if (new Date(checkOut).getTime() < new Date(checkIn).getTime()) {
       setError("Check-out must be on or after check-in.");
+      return;
+    }
+    if (!tierValidation.ok) {
+      setError("Resolve tier/stays mismatch first.");
       return;
     }
     onCreate({
@@ -77,6 +94,7 @@ export default function AddGuestModal({
       check_in: checkIn,
       check_out: checkOut,
       vip_tier: tier,
+      past_stays: Number.isFinite(pastStays) && pastStays >= 0 ? Math.floor(pastStays) : 0,
       notes: notes.trim() || undefined,
     });
   };
@@ -95,7 +113,12 @@ export default function AddGuestModal({
           <button
             type="button"
             onClick={submit}
-            disabled={!valid}
+            disabled={!canSubmit}
+            title={
+              !canSubmit && !tierValidation.ok
+                ? "Resolve tier/stays mismatch first"
+                : undefined
+            }
             className="ora-btn ora-btn-primary"
           >
             Create Profile
@@ -137,6 +160,18 @@ export default function AddGuestModal({
             />
           </label>
           <label className="block">
+            <span className="ora-label block mb-1">Check-In</span>
+            <input
+              type="date"
+              value={checkIn}
+              onChange={(e) => setCheckIn(e.target.value)}
+              className="ora-input font-mono"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
             <span className="ora-label block mb-1">VIP Tier</span>
             <select
               value={tier}
@@ -152,28 +187,64 @@ export default function AddGuestModal({
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="ora-label block mb-1">Past Stays</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={Number.isFinite(pastStays) ? pastStays : 0}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                setPastStays(Number.isFinite(n) && n >= 0 ? n : 0);
+              }}
+              className="ora-input font-mono"
+            />
+          </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="ora-label block mb-1">Check-In</span>
-            <input
-              type="date"
-              value={checkIn}
-              onChange={(e) => setCheckIn(e.target.value)}
-              className="ora-input font-mono"
-            />
-          </label>
-          <label className="block">
-            <span className="ora-label block mb-1">Check-Out</span>
-            <input
-              type="date"
-              value={checkOut}
-              onChange={(e) => setCheckOut(e.target.value)}
-              className="ora-input font-mono"
-            />
-          </label>
-        </div>
+        <p className="text-[10.5px] text-ora-muted-2 leading-relaxed -mt-1.5">
+          {tierHint}
+        </p>
+
+        {!tierValidation.ok && (
+          <div className="px-2.5 py-1.5 border border-ora-amber/40 bg-ora-amber-soft text-ora-amber text-[12px] rounded-sm leading-relaxed">
+            <div>
+              <span aria-hidden>⚠ </span>
+              {tierValidation.reason}. Adjust past stays or change tier.
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+              {tierValidation.suggestedTier && tierValidation.suggestedTier !== tier && (
+                <button
+                  type="button"
+                  onClick={() => setTier(tierValidation.suggestedTier!)}
+                  className="underline underline-offset-2 hover:opacity-80 text-[11.5px]"
+                >
+                  Use {TIER_RULES[tierValidation.suggestedTier].label}
+                </button>
+              )}
+              {typeof tierValidation.suggestedMinStays === "number" && (
+                <button
+                  type="button"
+                  onClick={() => setPastStays(tierValidation.suggestedMinStays!)}
+                  className="underline underline-offset-2 hover:opacity-80 text-[11.5px]"
+                >
+                  Set to {tierValidation.suggestedMinStays}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <label className="block">
+          <span className="ora-label block mb-1">Check-Out</span>
+          <input
+            type="date"
+            value={checkOut}
+            onChange={(e) => setCheckOut(e.target.value)}
+            className="ora-input font-mono"
+          />
+        </label>
 
         <label className="block">
           <span className="ora-label block mb-1">Standing Note (optional)</span>

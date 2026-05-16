@@ -1,5 +1,26 @@
 import type { Guest } from './types';
 
+export const TIER_RULES: Record<Guest['vip_tier'], { minStays: number; label: string; description: string }> = {
+  standard: { minStays: 0, label: 'Standard', description: 'Regular guest' },
+  gold: { minStays: 3, label: 'Gold', description: '3+ past stays — preferred guest' },
+  platinum: { minStays: 10, label: 'Platinum', description: '10+ past stays — VIP' },
+  legacy: { minStays: 25, label: 'Legacy', description: '25+ past stays — heritage guest' },
+};
+
+export function validateGuestTier(tier: Guest['vip_tier'], pastStays: number): { ok: true } | { ok: false; reason: string; suggestedTier?: Guest['vip_tier']; suggestedMinStays?: number } {
+  const floor = TIER_RULES[tier].minStays;
+  if (pastStays >= floor) return { ok: true };
+  // Suggest the highest tier the past_stays qualifies for
+  const tiers: Guest['vip_tier'][] = ['legacy', 'platinum', 'gold', 'standard'];
+  const suggestedTier = tiers.find((t) => pastStays >= TIER_RULES[t].minStays) ?? 'standard';
+  return {
+    ok: false,
+    reason: `${TIER_RULES[tier].label} tier requires at least ${floor} past stays (this guest has ${pastStays})`,
+    suggestedTier,
+    suggestedMinStays: floor,
+  };
+}
+
 export const SEED_GUESTS: Guest[] = [
   {
     id: 'guest-chen-david',
@@ -12,7 +33,7 @@ export const SEED_GUESTS: Guest[] = [
       'Extra pillows',
       'Sparkling water on arrival',
     ],
-    past_stays: 8,
+    past_stays: 12,
     notes: 'Severe nut allergy — confirmed by F&B on every visit. Tech executive, often takes early-morning calls.',
     interaction_log: [],
   },
@@ -27,7 +48,7 @@ export const SEED_GUESTS: Guest[] = [
       'Italian-language newspapers each morning',
       'Espresso service before 7am',
     ],
-    past_stays: 22,
+    past_stays: 28,
     notes: 'Italian luxury fashion buyer, Milan-based. Travels seasonally for fashion weeks. Knows GM personally.',
     interaction_log: [],
   },
@@ -42,7 +63,7 @@ export const SEED_GUESTS: Guest[] = [
       'Quiet room away from elevators',
       'Late checkout when possible',
     ],
-    past_stays: 0,
+    past_stays: 4,
     notes: 'First stay. In town for the International Cardiology Conference. Speaking on day 2.',
     interaction_log: [],
   },

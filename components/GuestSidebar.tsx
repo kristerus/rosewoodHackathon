@@ -125,8 +125,6 @@ export default function GuestSidebar({
   const guestMetadata = useAppStore((s) => s.guestMetadata);
   const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
   const { toast } = useToast();
-  const [enrichedOpen, setEnrichedOpen] = useState(false);
-  const enrichedRef = useRef<HTMLDivElement | null>(null);
 
   // On guest focus change, hydrate metadata from the server.
   useEffect(() => {
@@ -149,17 +147,6 @@ export default function GuestSidebar({
       cancelled = true;
     };
   }, [guest?.id, setGuestMetadata]);
-
-  useEffect(() => {
-    if (!enrichedOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (enrichedRef.current && !enrichedRef.current.contains(e.target as Node)) {
-        setEnrichedOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [enrichedOpen]);
 
   if (!guest) {
     return (
@@ -198,30 +185,6 @@ export default function GuestSidebar({
           <span className="font-mono text-[10.5px] text-ora-muted-2 tabular-nums">
             #{profileId(guest.id)}
           </span>
-        </div>
-        <div className="relative" ref={enrichedRef}>
-          <button
-            type="button"
-            onClick={() => setEnrichedOpen((v) => !v)}
-            className="ora-chip ora-chip-red cursor-pointer"
-            title="What is enriched AI data?"
-          >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-            </svg>
-            Enriched by AI
-          </button>
-          {enrichedOpen && (
-            <div className="absolute right-0 top-full mt-1 z-30 w-[260px] bg-white border border-ora-hairline-2 shadow-[0_4px_14px_rgba(0,0,0,0.12)] rounded-sm fade-up p-3">
-              <p className="text-[11.5px] text-ora-charcoal leading-relaxed">
-                This profile has been augmented with public-web research and
-                AI-anticipated preferences.
-              </p>
-              <p className="mt-2 text-[10.5px] text-ora-muted-2">
-                Source: Anthropic Claude + Web Search
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -351,9 +314,9 @@ export default function GuestSidebar({
 
         <div className="hairline mx-4" />
 
-        {/* AI Research */}
+        {/* Research */}
         <Section
-          title="AI Research"
+          title="Research"
           accent={
             <span className="text-[9.5px] text-ora-muted-2 tracking-wider uppercase font-semibold">
               Source: Public Web
@@ -380,7 +343,7 @@ export default function GuestSidebar({
                     Researching the web…
                   </>
                 ) : (
-                  <>Generate AI Research</>
+                  <>Research</>
                 )}
               </button>
             </div>

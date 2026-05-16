@@ -1,0 +1,40 @@
+STEP 1: goto /
+SAVED qa-01-default.png
+STEP 5: Reservations
+SAVED qa-02-reservations.png
+STEP 6: Guest Profiles
+SAVED qa-03-guest-profiles.png
+STEP 7: Service Requests + click first guest in inbox
+SAVED qa-04-service-with-guest.png
+STEP 8: Activities
+SAVED qa-05-activities.png
+STEP 9: Folio
+SAVED qa-06-folio.png
+STEP 10: Reports
+SAVED qa-07-reports.png
+STEP 11: Setup + sub-sections
+SAVED qa-08-setup-property.png
+SAVED qa-08-setup-rates.png
+SAVED qa-08-setup-markets.png
+SAVED qa-08-setup-departments.png
+SAVED qa-08-setup-ai.png
+SAVED qa-08-setup-users.png
+SAVED qa-08-setup-integrations.png
+STEP 12: Command Palette (F2)
+SAVED qa-09-command-palette.png
+STEP 13: Service Requests -> + New Guest Profile
+SAVED qa-10-add-guest-modal.png
+STEP 14: Pre-Arrival Information edit
+No pre-arrival edit button found by text
+SAVED qa-11-manual-input-modal.png
+Paste Email tab not found: locator.click: Timeout 3000ms exceeded.
+Call log:
+[2m  - waiting for getByText(/paste email/i).first()[22m
+
+SAVED qa-12-manual-input-email.png
+STEP 15: F1 help
+SAVED qa-13-help-modal.png
+STEP 16: F12 New SR
+SAVED qa-14-new-sr-modal.png
+STEP 17: /badge mobile
+SAVED qa-15-badge-mobile.png

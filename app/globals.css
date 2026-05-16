@@ -385,3 +385,277 @@ textarea.ora-input {
 .ora-highlight {
   animation: ora-highlight 1100ms ease-out both;
 }
+
+/* ---------- Dense data-table primitives ---------- */
+
+/* The Opera data table itself — dense, hairlined, sticky-header friendly */
+.ora-table {
+  width: 100%;
+  font-size: 11.5px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ora-charcoal);
+}
+.ora-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fafafa;
+  border-bottom: 1px solid var(--ora-hairline-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ora-muted);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+.ora-table thead th.right { text-align: right; }
+.ora-table thead th.center { text-align: center; }
+.ora-table tbody td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--ora-hairline);
+  vertical-align: middle;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.ora-table tbody td.wrap { white-space: normal; }
+.ora-table tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+.ora-table tbody td.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ora-table tbody tr {
+  height: 28px;
+}
+.ora-table tbody tr:nth-child(even) td {
+  background: #fafbfc;
+}
+.ora-table tbody tr:hover td {
+  background: var(--ora-row-hover);
+}
+.ora-table tbody tr.selected td {
+  background: var(--ora-row-selected);
+  box-shadow: inset 2px 0 0 0 var(--ora-red);
+}
+.ora-table tbody tr.is-cancelled td {
+  text-decoration: line-through;
+  color: var(--ora-muted-2);
+}
+
+/* Sortable header indicator */
+.ora-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.ora-sort .caret { opacity: 0.35; }
+.ora-sort.active { color: var(--ora-charcoal); }
+.ora-sort.active .caret { opacity: 1; color: var(--ora-red); }
+
+/* Two-line page header used at top of every tab content area */
+.ora-page-head {
+  background: #fff;
+  border-bottom: 1px solid var(--ora-hairline);
+  padding: 10px 16px 8px 16px;
+}
+.ora-page-head h2 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ora-charcoal);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+.ora-page-head .sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ora-muted);
+}
+
+/* Toolbar used above tables (filters, search, action buttons) */
+.ora-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--ora-bg);
+  border-bottom: 1px solid var(--ora-hairline);
+  min-height: 36px;
+}
+.ora-toolbar .sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--ora-hairline-2);
+  margin: 0 4px;
+}
+
+/* Small inline button used in toolbars */
+.ora-mini-btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ora-charcoal);
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  border-radius: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.ora-mini-btn:hover { background: var(--ora-row-hover); }
+.ora-mini-btn[data-active="true"] {
+  background: var(--ora-red-soft);
+  color: var(--ora-red-deep);
+  border-color: #f0b9b1;
+  font-weight: 600;
+}
+
+/* Ellipsis / kebab row-action button */
+.ora-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  color: var(--ora-muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.ora-table tbody tr:hover .ora-row-actions { visibility: visible; }
+.ora-row-actions:hover { background: var(--ora-hairline); color: var(--ora-charcoal); }
+
+/* Compact two-column detail grid (label-right, value-left) */
+.ora-detail-grid {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 6px;
+  font-size: 12px;
+}
+.ora-detail-grid dt {
+  text-align: right;
+  color: var(--ora-muted);
+  font-size: 11px;
+  padding-top: 3px;
+}
+.ora-detail-grid dd {
+  color: var(--ora-charcoal);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* "Card" report-style block */
+.ora-report-card {
+  background: #fff;
+  border: 1px solid var(--ora-hairline);
+  border-radius: 2px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ora-report-card:hover {
+  border-color: var(--ora-hairline-2);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Severity dot used for status / activity types */
+.ora-sev-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Section card with strong inner header strip */
+.ora-section {
+  background: #fff;
+  border: 1px solid var(--ora-hairline);
+  border-radius: 2px;
+}
+.ora-section-head {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ora-hairline);
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+/* Sub-tab strip used inside detail screens (Folio, SR workspace) */
+.ora-mini-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--ora-hairline);
+  background: #fff;
+  padding: 0 8px;
+}
+.ora-mini-tabs button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ora-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.ora-mini-tabs button:hover { color: var(--ora-charcoal); }
+.ora-mini-tabs button[data-active="true"] {
+  color: var(--ora-charcoal);
+  font-weight: 700;
+  border-bottom-color: var(--ora-red);
+}
+
+/* Search input look — inline pill */
+.ora-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  border-radius: 2px;
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+}
+.ora-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--ora-charcoal);
+}
+.ora-search input::placeholder { color: var(--ora-muted-2); }
+
+/* Small status-bar at bottom of a detail panel */
+.ora-detail-footer {
+  border-top: 1px solid var(--ora-hairline);
+  padding: 4px 12px;
+  background: #fafafa;
+  font-size: 10.5px;
+  color: var(--ora-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}

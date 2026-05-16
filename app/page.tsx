@@ -606,9 +606,6 @@ function Home() {
           <span className="ml-1 inline-flex items-center rounded-sm border border-ora-hairline-2 bg-ora-bg px-1.5 py-0.5 text-[10px] font-semibold text-ora-charcoal tracking-wide">
             OPERA Cloud
           </span>
-          <span className="ml-2 inline-flex items-center rounded-sm border border-ora-hairline bg-white px-1.5 py-0.5 text-[10px] text-ora-muted tracking-wider uppercase">
-            Concierge AI · Extension
-          </span>
         </div>
 
         <div className="flex items-center gap-3">
