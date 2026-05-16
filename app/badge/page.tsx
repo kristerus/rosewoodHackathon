@@ -50,17 +50,20 @@ export default function BadgePage() {
     rec.lang = "en-US";
     rec.onresult = (event: unknown) => {
       const e = event as {
-        resultIndex: number;
         results: ArrayLike<
           ArrayLike<{ transcript: string }> & { isFinal: boolean }
         >;
       };
-      let final = finalRef.current;
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      // Always rebuild the full transcript from ALL final results in the
+      // session, instead of incrementally accumulating. On Android Chrome
+      // the same final result can fire onresult multiple times, which
+      // caused "DrDrDr RajDr Raj Patel needs..." duplicated text.
+      let final = "";
+      for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) final += r[0].transcript;
+        if (r.isFinal) final += r[0].transcript + " ";
       }
-      finalRef.current = final;
+      finalRef.current = final.replace(/\s+/g, " ").trim();
     };
     rec.onerror = () => {
       setStatus({ kind: "error" });
