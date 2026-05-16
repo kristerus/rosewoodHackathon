@@ -45,6 +45,7 @@ const URGENCY_META: Record<Urgency, { label: string; chip: string }> = {
   normal: { label: "ROUTINE", chip: "ora-chip-grey" },
   high: { label: "ELEVATED", chip: "ora-chip-amber" },
   urgent: { label: "URGENT", chip: "ora-chip-red" },
+  critical: { label: "CRITICAL", chip: "ora-chip-red" },
 };
 
 const STATUS_META: Record<TicketStatus, { label: string; chip: string }> = {

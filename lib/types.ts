@@ -45,7 +45,7 @@ export interface Guest {
   booking_dates: { check_in: string; check_out: string };
   vip_tier: 'standard' | 'gold' | 'platinum' | 'legacy';
   preferences: string[];
-  learnedPreferences: string[];
+  learnedPreferences?: string[];
   past_stays: number;
   notes: string;
   linkedInSummary?: string;

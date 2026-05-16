@@ -238,7 +238,7 @@ Call extract_guest_preferences now.`,
     recentNews: extracted.recentActivity,
     linkedInSummary: extracted.linkedInSummary ?? linkedInHeadline ?? guest.linkedInSummary,
     learnedPreferences: Array.from(
-      new Set([...guest.learnedPreferences, ...extracted.inferred_preferences]),
+      new Set([...(guest.learnedPreferences ?? []), ...extracted.inferred_preferences]),
     ),
     ...(extracted.dietary_signals.length > 0 && {
       dietaryRestrictions: Array.from(
@@ -277,7 +277,7 @@ function demoEnrichWithoutClaude(guest: Guest, fixture: { posts: string[]; linke
     interests: Array.from(new Set([...(guest.interests ?? []), ...foundKeywords])),
     recentNews: fixture.posts.slice(0, 4).map((p) => p.replace(/^[A-Za-z/X]+\s*\(@[^)]+\):\s*/, '').replace(/^[A-Za-z]+:\s*/, '')),
     linkedInSummary: fixture.linkedInHeadline ?? guest.linkedInSummary,
-    learnedPreferences: Array.from(new Set([...guest.learnedPreferences, ...inferred])),
+    learnedPreferences: Array.from(new Set([...(guest.learnedPreferences ?? []), ...inferred])),
   };
 }
 

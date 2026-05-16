@@ -78,6 +78,7 @@ export interface AppState {
   addGuest: (guest: Guest) => void;
   removeGuest: (guestId: string) => void;
   setGuestMetadata: (guestId: string, data: Partial<GuestMetadata>) => void;
+  enrichGuest: (guestId: string, partial: Partial<Guest>) => void;
 }
 
 const initialGuests: Guest[] = (SEED_GUESTS ?? []).map((g) => ({
@@ -212,6 +213,19 @@ export const useAppStore = create<AppState>((set) => ({
         guestNotes: nextNotes,
       };
     }),
+  enrichGuest: (guestId, partial) =>
+    set((state) => ({
+      guests: state.guests.map((g) => {
+        if (g.id !== guestId) return g;
+        const merged = { ...g, ...partial };
+        if (partial.learnedPreferences) {
+          merged.learnedPreferences = Array.from(
+            new Set([...(g.learnedPreferences ?? []), ...partial.learnedPreferences]),
+          );
+        }
+        return merged;
+      }),
+    })),
   setGuestMetadata: (guestId, data) =>
     set((state) => {
       const existing = state.guestMetadata[guestId];

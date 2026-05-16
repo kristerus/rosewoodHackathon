@@ -82,6 +82,14 @@ function synthesizeFallbackBrief(guest: Guest): GuestBrief {
     preferences_inferred: guest.preferences.length > 0
       ? guest.preferences.slice(0, 3).map((p) => `Continue honoring: ${p}`)
       : ['Discretion and efficiency on arrival.', 'Minimal interruption during the stay.'],
+    personalizedExperiences: [],
+    welcomeActions: {
+      roomSetup: 'Standard setup per guest preferences.',
+      preArrivalDrink: 'Sparkling water on arrival.',
+      welcomeNote: `Welcome back, ${guest.name.replace(/^(Mr|Mrs|Ms|Dr)\.?\s+/i, '').split(' ')[0]}.`,
+      conciergeAlert: guest.notes || 'No special instructions.',
+    },
+    riskFlags: [],
     generated_at: new Date().toISOString(),
   };
 }

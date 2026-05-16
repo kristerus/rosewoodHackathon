@@ -521,8 +521,8 @@ function ProfileDetail({
           {/* Learned Preferences */}
           <section>
             <SectionHead title="Learned Preferences" badge="From badge interactions" />
-            {guest.learnedPreferences.length > 0 ? (
-              <TagCloud items={guest.learnedPreferences.map((p) => `✦ ${p}`)} variant="brass" />
+            {(guest.learnedPreferences?.length ?? 0) > 0 ? (
+              <TagCloud items={(guest.learnedPreferences ?? []).map((p) => `✦ ${p}`)} variant="brass" />
             ) : (
               <p className="text-[12px]" style={{ color: "var(--rw-mute)" }}>None yet.</p>
             )}

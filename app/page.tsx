@@ -516,6 +516,7 @@ function Home() {
         },
         vip_tier: data.vip_tier,
         preferences: [],
+        learnedPreferences: [],
         past_stays: data.past_stays,
         notes: data.notes ?? "",
         interaction_log: [],
