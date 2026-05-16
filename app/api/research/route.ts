@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic, ANTHROPIC_MODEL } from '@/lib/anthropic';
-import { publish } from '@/lib/event-bus';
 import type { Guest, GuestBrief } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -159,7 +158,6 @@ Steps:
       // eslint-disable-next-line no-console
       console.warn('[research] Claude did not return create_guest_brief; falling back to synthesized brief.');
       const fallback = synthesizeFallbackBrief(guest);
-      publish({ type: 'brief', guest_id, brief: fallback });
       return NextResponse.json({ brief: fallback, fallback: true });
     }
 
@@ -169,7 +167,6 @@ Steps:
       generated_at: new Date().toISOString(),
     };
 
-    publish({ type: 'brief', guest_id, brief });
     return NextResponse.json({ brief });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -177,7 +174,6 @@ Steps:
     // eslint-disable-next-line no-console
     console.warn('[research] Claude call failed, using fallback brief:', message);
     const fallback = synthesizeFallbackBrief(guest);
-    publish({ type: 'brief', guest_id, brief: fallback });
     return NextResponse.json({ brief: fallback, fallback: true, error: message });
   }
 }

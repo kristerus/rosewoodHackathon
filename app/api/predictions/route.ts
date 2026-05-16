@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic, ANTHROPIC_MODEL } from '@/lib/anthropic';
-import { publish } from '@/lib/event-bus';
 import type { ConfidenceLevel, Department, Guest, Prediction } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -150,8 +149,8 @@ Call create_predictions now.`,
       confidence: p.confidence,
     }));
 
-    publish({ type: 'prediction', guest_id, predictions });
-
+    // Note: predictions are returned directly to the caller. No pub/sub fanout
+    // — the caller hydrates its own Zustand store from the response.
     return NextResponse.json({ predictions });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

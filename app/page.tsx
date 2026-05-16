@@ -9,7 +9,8 @@ import {
   type ActiveTab,
   type Prediction,
 } from "@/lib/store";
-import type { Guest, Ticket } from "@/lib/types";
+import type { Department, Guest, Ticket, TicketStatus, Urgency } from "@/lib/types";
+import { getSupabaseClient } from "@/lib/supabase";
 import InboxSidebar from "@/components/InboxSidebar";
 import ConversationThread from "@/components/ConversationThread";
 import GuestSidebar from "@/components/GuestSidebar";
@@ -151,55 +152,108 @@ function Home() {
     }
   }, [focusedGuestId, focusedKey]);
 
-  /* ---------- SSE wiring ---------- */
+  /* ---------- Supabase Realtime wiring ---------- */
   useEffect(() => {
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource("/api/events");
-      es.onopen = () => setSseConnected(true);
-      es.onerror = () => setSseConnected(false);
-      es.onmessage = (ev: MessageEvent<string>) => {
-        try {
-          const payload = JSON.parse(ev.data) as
-            | { type: "ticket"; ticket: Ticket }
-            | { type: "transcript"; transcript: string; staff_id: string };
-          if (payload.type === "ticket") {
-            addTicket(payload.ticket);
-            const match = matchGuestForTicket(
-              payload.ticket,
-              useAppStore.getState().guests,
-            );
-            if (match) {
-              focusGuest(match.id);
-              setFocusedKey(match.id);
-            } else {
-              setFocusedKey(UNASSIGNED_KEY);
-            }
-            setTranscript("");
-            setListening(false);
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-              try {
-                navigator.vibrate?.(120);
-              } catch {
-                /* noop */
-              }
-            }
-          } else if (payload.type === "transcript") {
-            setTranscript(payload.transcript);
-            setListening(true);
-          }
-        } catch {
-          /* ignore */
-        }
-      };
-    } catch {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSseConnected(false);
-    }
-    return () => {
-      es?.close();
+    // Shape the raw Supabase row (snake_case `created_at`) into our app's
+    // Ticket type (which keeps the legacy `timestamp` field).
+    type TicketRow = {
+      id: string;
+      created_at: string;
+      guest_name: string | null;
+      room_number: string | null;
+      department: Department;
+      urgency: Urgency;
+      intent: string;
+      action_required: string;
+      guest_facing_message: string | null;
+      internal_notes: string | null;
+      raw_transcript: string;
+      staff_id: string;
+      status?: TicketStatus;
     };
-    // sseEpoch bump forces a reconnect (F5 refresh).
+    const rowToTicket = (row: TicketRow): Ticket => ({
+      id: row.id,
+      timestamp: row.created_at,
+      guest_name: row.guest_name,
+      room_number: row.room_number,
+      department: row.department,
+      urgency: row.urgency,
+      intent: row.intent,
+      action_required: row.action_required,
+      guest_facing_message: row.guest_facing_message ?? "",
+      internal_notes: row.internal_notes ?? "",
+      raw_transcript: row.raw_transcript,
+      staff_id: row.staff_id,
+      status: row.status ?? "open",
+    });
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setSseConnected(false);
+      return;
+    }
+
+    // 1) Hydrate the dashboard with the most recent persisted tickets so the
+    //    UI doesn't look empty on a fresh load.
+    void (async () => {
+      try {
+        const res = await fetch("/api/tickets/recent?limit=50");
+        if (!res.ok) return;
+        const data = (await res.json()) as { tickets: Ticket[] };
+        // Add oldest-first so the newest ends up at the top of the store list.
+        for (const t of data.tickets.slice().reverse()) addTicket(t);
+      } catch {
+        /* offline hydration is best-effort */
+      }
+    })();
+
+    // 2) Subscribe to live INSERTs from Supabase. Replaces the old SSE stream.
+    const channel = supabase
+      .channel(`rosewood-tickets-${sseEpoch}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tickets" },
+        (payload) => {
+          const ticket = rowToTicket(payload.new as TicketRow);
+          addTicket(ticket);
+          const match = matchGuestForTicket(
+            ticket,
+            useAppStore.getState().guests,
+          );
+          if (match) {
+            focusGuest(match.id);
+            setFocusedKey(match.id);
+          } else {
+            setFocusedKey(UNASSIGNED_KEY);
+          }
+          setTranscript("");
+          setListening(false);
+          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            try {
+              navigator.vibrate?.(120);
+            } catch {
+              /* noop */
+            }
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "transcripts" },
+        (payload) => {
+          const t = payload.new as { transcript: string; staff_id: string };
+          setTranscript(t.transcript);
+          setListening(true);
+        },
+      )
+      .subscribe((status) => {
+        setSseConnected(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // sseEpoch bump forces a re-subscribe (F5 refresh).
   }, [addTicket, focusGuest, setListening, setTranscript, sseEpoch]);
 
   /* ---------- Derived ---------- */
