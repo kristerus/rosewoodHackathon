@@ -813,7 +813,10 @@ function Home() {
               isProcessing={isProcessing}
               onOpenNewSR={() => setNewSROpen(true)}
             />
-            <div ref={guestSidebarRef} className="h-full">
+            <div
+              ref={guestSidebarRef}
+              className="h-full min-h-0 overflow-hidden"
+            >
               <GuestSidebar
                 guest={focusedGuest}
                 tickets={threadTickets}
