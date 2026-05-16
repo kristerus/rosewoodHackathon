@@ -34,3 +34,28 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## API Key Setup (Anthropic)
+
+The voice-to-ticket and guest-brief endpoints call the Anthropic API.
+
+1. Copy the example env file:
+
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+2. Open `.env.local` and replace the placeholder with your real key:
+
+   ```
+   ANTHROPIC_API_KEY=sk-ant-api03-...
+   ```
+
+3. Restart `npm run dev` so Next.js picks up the new env var.
+
+Endpoints provided:
+
+- `POST /api/extract` — body `{ transcript, staff_id, known_guests }` → `{ ticket }`
+- `POST /api/guest-brief` — body `{ guest_id, guests }` → `{ brief }`
+
+Model used: `claude-sonnet-4-6`. `.env.local` is already gitignored — never commit your key.

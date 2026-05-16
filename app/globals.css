@@ -1,26 +1,171 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* RoseWood palette */
+  --rw-forest: #1a3a2e;
+  --rw-forest-deep: #0f2620;
+  --rw-cream: #f7f3ec;
+  --rw-cream-soft: #fefcf8;
+  --rw-brass: #b8945f;
+  --rw-brass-light: #d4b683;
+  --rw-charcoal: #1c1c1c;
+  --rw-stone: #e8e2d6;
+  --rw-stone-line: #d8d0bf;
+  --rw-ink: #2a2a28;
+  --rw-mute: #6b6760;
+
+  /* surface tokens */
+  --background: var(--rw-cream-soft);
+  --foreground: var(--rw-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-rw-forest: var(--rw-forest);
+  --color-rw-forest-deep: var(--rw-forest-deep);
+  --color-rw-cream: var(--rw-cream);
+  --color-rw-cream-soft: var(--rw-cream-soft);
+  --color-rw-brass: var(--rw-brass);
+  --color-rw-brass-light: var(--rw-brass-light);
+  --color-rw-charcoal: var(--rw-charcoal);
+  --color-rw-stone: var(--rw-stone);
+  --color-rw-stone-line: var(--rw-stone-line);
+  --color-rw-ink: var(--rw-ink);
+  --color-rw-mute: var(--rw-mute);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color-scheme: light;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.005em;
+}
+
+/* Editorial small-caps label used for system tags */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--rw-mute);
+  font-weight: 500;
+}
+
+.eyebrow-brass {
+  color: var(--rw-brass);
+}
+
+/* Hairline divider with an inset gold pip */
+.hairline {
+  height: 1px;
+  background: var(--rw-stone-line);
+}
+
+/* Subtle paper grain for panels */
+.paper {
+  background-color: var(--rw-cream-soft);
+  background-image:
+    radial-gradient(
+      circle at 1px 1px,
+      rgba(26, 58, 46, 0.025) 1px,
+      transparent 0
+    );
+  background-size: 22px 22px;
+}
+
+/* Listening pulse rings */
+@keyframes rw-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  80% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.pulse-ring {
+  animation: rw-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.pulse-ring-delayed {
+  animation: rw-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation-delay: 0.8s;
+}
+
+@keyframes rw-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: rw-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rw-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.slide-in {
+  animation: rw-slide-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rw-shimmer {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
+.shimmer {
+  animation: rw-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Scrollbar refinement */
+.scroll-rw::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-rw::-webkit-scrollbar-thumb {
+  background: var(--rw-stone-line);
+  border-radius: 999px;
+}
+.scroll-rw::-webkit-scrollbar-track {
+  background: transparent;
 }
