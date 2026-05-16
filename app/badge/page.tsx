@@ -54,14 +54,40 @@ export default function BadgePage() {
           ArrayLike<{ transcript: string }> & { isFinal: boolean }
         >;
       };
-      // Always rebuild the full transcript from ALL final results in the
-      // session, instead of incrementally accumulating. On Android Chrome
-      // the same final result can fire onresult multiple times, which
-      // caused "DrDrDr RajDr Raj Patel needs..." duplicated text.
+      // Some browsers (Android Chrome) emit CUMULATIVE final results:
+      // each new result repeats everything said so far, e.g.
+      //   results[0]="Mr"
+      //   results[1]="Mr Chen"
+      //   results[2]="Mr Chen needs"
+      //   ...
+      // Naively concatenating gives "Mr Mr Chen Mr Chen needs ...".
+      //
+      // Approach: walk all isFinal results, and only accept a new one
+      // if its text doesn't already appear in our accumulated transcript.
+      // If the new text is a SUPERSET of the accumulated, replace it.
+      // If it's a totally new sentence, append.
+      const normalize = (s: string) =>
+        s.replace(/\s+/g, " ").trim().toLowerCase();
       let final = "";
       for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) final += r[0].transcript + " ";
+        if (!r.isFinal) continue;
+        const raw = (r[0].transcript ?? "").replace(/\s+/g, " ").trim();
+        if (!raw) continue;
+        const cur = normalize(final);
+        const next = normalize(raw);
+        if (!cur) {
+          final = raw;
+        } else if (next.startsWith(cur)) {
+          // New result extends current → replace (cumulative case).
+          final = raw;
+        } else if (cur.startsWith(next) || cur.endsWith(next) || cur.includes(next)) {
+          // New result already contained in current → skip (duplicate).
+          continue;
+        } else {
+          // Genuinely new segment → append.
+          final = final + " " + raw;
+        }
       }
       finalRef.current = final.replace(/\s+/g, " ").trim();
     };
