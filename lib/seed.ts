@@ -1,5 +1,26 @@
 import type { Guest } from './types';
 
+export const TIER_RULES: Record<Guest['vip_tier'], { minStays: number; label: string; description: string }> = {
+  standard: { minStays: 0, label: 'Standard', description: 'Regular guest' },
+  gold: { minStays: 3, label: 'Gold', description: '3+ past stays — preferred guest' },
+  platinum: { minStays: 10, label: 'Platinum', description: '10+ past stays — VIP' },
+  legacy: { minStays: 25, label: 'Legacy', description: '25+ past stays — heritage guest' },
+};
+
+export function validateGuestTier(tier: Guest['vip_tier'], pastStays: number): { ok: true } | { ok: false; reason: string; suggestedTier?: Guest['vip_tier']; suggestedMinStays?: number } {
+  const floor = TIER_RULES[tier].minStays;
+  if (pastStays >= floor) return { ok: true };
+  // Suggest the highest tier the past_stays qualifies for
+  const tiers: Guest['vip_tier'][] = ['legacy', 'platinum', 'gold', 'standard'];
+  const suggestedTier = tiers.find((t) => pastStays >= TIER_RULES[t].minStays) ?? 'standard';
+  return {
+    ok: false,
+    reason: `${TIER_RULES[tier].label} tier requires at least ${floor} past stays (this guest has ${pastStays})`,
+    suggestedTier,
+    suggestedMinStays: floor,
+  };
+}
+
 export const SEED_GUESTS: Guest[] = [
   {
     id: 'guest-chen-david',
@@ -12,19 +33,8 @@ export const SEED_GUESTS: Guest[] = [
       'Extra pillows',
       'Sparkling water on arrival',
     ],
-    learnedPreferences: [],
-    past_stays: 8,
+    past_stays: 12,
     notes: 'Severe nut allergy — confirmed by F&B on every visit. Tech executive, often takes early-morning calls.',
-    linkedInSummary: 'VP of Product at Horizon Labs (Series C AI infrastructure startup). Previously led product at Stripe and Google. Stanford CS grad, active angel investor.',
-    recentNews: [
-      'Keynote speaker at TechCrunch Disrupt SF last month',
-      'Horizon Labs recently closed $80M Series C, coverage in TechCrunch and Forbes',
-      'Published op-ed in Wired on responsible AI deployment',
-    ],
-    interests: ['Cold brew coffee', 'Jazz', 'Road cycling', 'Coldplay'],
-    dietaryRestrictions: ['Severe nut allergy (anaphylactic)', 'No pork'],
-    preferredLanguage: 'English',
-    lifetimeValue: '$42,000',
     interaction_log: [],
   },
   {
@@ -38,19 +48,8 @@ export const SEED_GUESTS: Guest[] = [
       'Italian-language newspapers each morning',
       'Espresso service before 7am',
     ],
-    learnedPreferences: [],
-    past_stays: 22,
+    past_stays: 28,
     notes: 'Italian luxury fashion buyer, Milan-based. Travels seasonally for fashion weeks. Knows GM personally.',
-    linkedInSummary: 'Senior Buying Director at Rinascente Group. 20+ years in luxury retail. Adjunct lecturer at Istituto Marangoni. Influential voice in sustainable luxury.',
-    recentNews: [
-      'Featured in Vogue Italia\'s "Gatekeepers of Italian Fashion" profile',
-      'Led Rinascente\'s new sustainable sourcing initiative launched in April',
-      'Panelist at Milan Fashion Week sustainability forum',
-    ],
-    interests: ['Opera', 'Baroque art', 'Sicilian cuisine', 'Vintage Hermès', 'Contemporary Italian ceramics'],
-    dietaryRestrictions: ['Lactose intolerant', 'Prefers organic produce'],
-    preferredLanguage: 'Italian (English spoken fluently)',
-    lifetimeValue: '$128,000',
     interaction_log: [],
   },
   {
@@ -64,19 +63,8 @@ export const SEED_GUESTS: Guest[] = [
       'Quiet room away from elevators',
       'Late checkout when possible',
     ],
-    learnedPreferences: [],
-    past_stays: 0,
+    past_stays: 4,
     notes: 'First stay. In town for the International Cardiology Conference. Speaking on day 2.',
-    linkedInSummary: 'Interventional Cardiologist and Associate Professor at Johns Hopkins Medicine. Researcher in minimally invasive cardiac procedures. 80+ peer-reviewed publications.',
-    recentNews: [
-      'Published landmark study in NEJM on transcatheter valve replacement outcomes',
-      'Appointed to AHA Scientific Advisory Board this spring',
-      'TED-Med talk on AI-assisted cardiac diagnostics has 2.1M views',
-    ],
-    interests: ['Classical tabla', 'Cricket', 'Philosophy of medicine', 'Science communication'],
-    dietaryRestrictions: ['Strictly kosher', 'Vegetarian', 'No shellfish'],
-    preferredLanguage: 'English',
-    lifetimeValue: '$3,200',
     interaction_log: [],
   },
   {
@@ -90,19 +78,8 @@ export const SEED_GUESTS: Guest[] = [
       'Earl Grey, milk on the side, two scones with clotted cream',
       'Housekeeping only between 10am–noon',
     ],
-    learnedPreferences: [],
     past_stays: 43,
     notes: 'Retired philanthropist, long-time patron. Prefers to be addressed formally. Mobility-aware staff escort appreciated.',
-    linkedInSummary: 'Retired Chair of the Whitfield Foundation, which has donated $200M to arts, education, and heritage preservation. Former trustee of the Tate Modern and National Trust.',
-    recentNews: [
-      'Whitfield Foundation announced £5M grant to restore Elizabethan theatre in Bath',
-      'Named honorary Fellow of the Royal Academy of Arts',
-      'Subject of a BBC Radio 4 documentary on postwar British philanthropy',
-    ],
-    interests: ['British garden design', 'Watercolour painting', 'Agatha Christie', 'Choral evensong', 'Orchid cultivation'],
-    dietaryRestrictions: ['Gluten-free preferred', 'No red meat', 'Decaf only after 3pm'],
-    preferredLanguage: 'English',
-    lifetimeValue: '$380,000',
     interaction_log: [],
   },
 ];

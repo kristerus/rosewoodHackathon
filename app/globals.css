@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  /* RoseWood palette */
+  /* RoseWood palette (legacy — kept for tiny corner mark only) */
   --rw-forest: #1a3a2e;
   --rw-forest-deep: #0f2620;
   --rw-cream: #f7f3ec;
@@ -14,26 +14,79 @@
   --rw-ink: #2a2a28;
   --rw-mute: #6b6760;
 
+  /* ---------- Oracle Hospitality / OPERA Cloud palette ---------- */
+  /* Oracle's official brand red, used sparingly: active tabs, primary CTA, wordmark */
+  --ora-red: #C74634;
+  --ora-red-deep: #9A2F22;
+  --ora-red-soft: #FBEDEB;
+  /* Oracle secondary accents */
+  --ora-blue: #1B4F8A;       /* link / info accent (Oracle Cloud blue) */
+  --ora-blue-soft: #E8F0F9;
+  --ora-teal: #2D7A7B;
+  /* Neutral chrome — slate greys */
+  --ora-bg: #F4F4F5;         /* app shell light grey */
+  --ora-surface: #FFFFFF;
+  --ora-charcoal: #312D2A;   /* Oracle text */
+  --ora-ink: #1F1D1B;
+  --ora-muted: #6B7280;
+  --ora-muted-2: #9CA3AF;
+  --ora-hairline: #E5E7EB;
+  --ora-hairline-2: #D4D4D8;
+  --ora-row-hover: #F1F5F9;
+  --ora-row-selected: #FEF2F0; /* very faint red wash */
+  /* Status */
+  --ora-green: #15803D;
+  --ora-green-soft: #DCFCE7;
+  --ora-amber: #B45309;
+  --ora-amber-soft: #FEF3C7;
+  --ora-grey-chip: #E5E7EB;
+  --ora-grey-chip-fg: #374151;
+
   /* surface tokens */
-  --background: var(--rw-cream-soft);
-  --foreground: var(--rw-ink);
+  --background: var(--ora-bg);
+  --foreground: var(--ora-charcoal);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-rw-forest: var(--rw-forest);
-  --color-rw-forest-deep: var(--rw-forest-deep);
-  --color-rw-cream: var(--rw-cream);
-  --color-rw-cream-soft: var(--rw-cream-soft);
-  --color-rw-brass: var(--rw-brass);
-  --color-rw-brass-light: var(--rw-brass-light);
-  --color-rw-charcoal: var(--rw-charcoal);
-  --color-rw-stone: var(--rw-stone);
-  --color-rw-stone-line: var(--rw-stone-line);
-  --color-rw-ink: var(--rw-ink);
-  --color-rw-mute: var(--rw-mute);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+@theme {
+  --color-background: #F4F4F5;
+  --color-foreground: #312D2A;
+
+  /* RoseWood (legacy — corner mark only) */
+  --color-rw-forest: #1a3a2e;
+  --color-rw-forest-deep: #0f2620;
+  --color-rw-cream: #f7f3ec;
+  --color-rw-cream-soft: #fefcf8;
+  --color-rw-brass: #b8945f;
+  --color-rw-brass-light: #d4b683;
+  --color-rw-charcoal: #1c1c1c;
+  --color-rw-stone: #e8e2d6;
+  --color-rw-stone-line: #d8d0bf;
+  --color-rw-ink: #2a2a28;
+  --color-rw-mute: #6b6760;
+
+  /* Oracle Hospitality / OPERA Cloud palette */
+  --color-ora-red: #C74634;
+  --color-ora-red-deep: #9A2F22;
+  --color-ora-red-soft: #FBEDEB;
+  --color-ora-blue: #1B4F8A;
+  --color-ora-blue-soft: #E8F0F9;
+  --color-ora-teal: #2D7A7B;
+  --color-ora-bg: #F4F4F5;
+  --color-ora-surface: #FFFFFF;
+  --color-ora-charcoal: #312D2A;
+  --color-ora-ink: #1F1D1B;
+  --color-ora-muted: #6B7280;
+  --color-ora-muted-2: #9CA3AF;
+  --color-ora-hairline: #E5E7EB;
+  --color-ora-hairline-2: #D4D4D8;
+  --color-ora-row-hover: #F1F5F9;
+  --color-ora-row-selected: #FEF2F0;
+  --color-ora-green: #15803D;
+  --color-ora-green-soft: #DCFCE7;
+  --color-ora-amber: #B45309;
+  --color-ora-amber-soft: #FEF3C7;
+
+  --font-sans: var(--font-geist-sans), "Oracle Sans", "Source Sans Pro", ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-cormorant), "Cormorant Garamond", "Playfair Display", Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -54,118 +107,555 @@ body {
   letter-spacing: -0.005em;
 }
 
-/* Editorial small-caps label used for system tags */
-.eyebrow {
+/* ---------- Oracle Opera Cloud helpers ---------- */
+
+/* Uppercase label used for table headers, section captions */
+.ora-label {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ora-muted);
+  font-weight: 600;
+}
+
+/* Function-key chip used in the bottom bar */
+.ora-fnkey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 22px;
+  border-right: 1px solid var(--ora-hairline);
+  font-size: 11px;
+  color: var(--ora-charcoal);
+  white-space: nowrap;
+}
+.ora-fnkey:last-child {
+  border-right: none;
+}
+.ora-fnkey kbd {
   font-family: var(--font-sans);
   font-size: 10px;
-  letter-spacing: 0.22em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--ora-charcoal);
+  min-width: 22px;
+  text-align: center;
+}
+
+/* Status pills */
+.ora-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  height: 18px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--rw-mute);
+  border: 1px solid var(--ora-hairline);
+  background: #fff;
+  color: var(--ora-charcoal);
+  line-height: 1;
+}
+.ora-chip-green {
+  background: var(--ora-green-soft);
+  color: var(--ora-green);
+  border-color: #bbf7d0;
+}
+.ora-chip-blue {
+  background: var(--ora-blue-soft);
+  color: var(--ora-blue);
+  border-color: #c7dcf2;
+}
+.ora-chip-grey {
+  background: var(--ora-grey-chip);
+  color: var(--ora-grey-chip-fg);
+  border-color: var(--ora-hairline-2);
+}
+.ora-chip-red {
+  background: var(--ora-red-soft);
+  color: var(--ora-red-deep);
+  border-color: #f6cdc7;
+}
+.ora-chip-amber {
+  background: var(--ora-amber-soft);
+  color: var(--ora-amber);
+  border-color: #fde68a;
+}
+
+/* Primary action — Oracle red filled button */
+.ora-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0 12px;
+  height: 28px;
+  border: 1px solid var(--ora-hairline-2);
+  background: #fff;
+  color: var(--ora-charcoal);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.ora-btn:hover:not(:disabled) {
+  background: var(--ora-row-hover);
+  border-color: #b9bbc0;
+}
+.ora-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ora-btn-primary {
+  background: var(--ora-red);
+  color: #fff;
+  border-color: var(--ora-red);
+}
+.ora-btn-primary:hover:not(:disabled) {
+  background: var(--ora-red-deep);
+  border-color: var(--ora-red-deep);
+}
+
+/* Tab in the topbar navigation */
+.ora-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12.5px;
   font-weight: 500;
+  color: var(--ora-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  user-select: none;
+}
+.ora-tab:hover {
+  color: var(--ora-charcoal);
+  background: #fafafa;
+}
+.ora-tab[data-active="true"] {
+  color: var(--ora-charcoal);
+  font-weight: 700;
+  border-bottom-color: var(--ora-red);
 }
 
-.eyebrow-brass {
-  color: var(--rw-brass);
+/* Data row look — sharp corners, hairline borders */
+.ora-card {
+  background: #fff;
+  border: 1px solid var(--ora-hairline);
+  border-radius: 2px;
 }
 
-/* Hairline divider with an inset gold pip */
-.hairline {
-  height: 1px;
-  background: var(--rw-stone-line);
+/* Listening pulse rings (kept for status indicator) */
+@keyframes ora-pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  80% { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
-
-/* Subtle paper grain for panels */
-.paper {
-  background-color: var(--rw-cream-soft);
-  background-image:
-    radial-gradient(
-      circle at 1px 1px,
-      rgba(26, 58, 46, 0.025) 1px,
-      transparent 0
-    );
-  background-size: 22px 22px;
-}
-
-/* Listening pulse rings */
-@keyframes rw-pulse-ring {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  80% {
-    transform: scale(1.7);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.7);
-    opacity: 0;
-  }
-}
-
 .pulse-ring {
-  animation: rw-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: ora-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
-
 .pulse-ring-delayed {
-  animation: rw-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation: ora-pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   animation-delay: 0.8s;
 }
 
-@keyframes rw-fade-up {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes ora-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot {
+  animation: ora-pulse-dot 1.6s ease-in-out infinite;
 }
 
+@keyframes ora-fade-up {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 .fade-up {
-  animation: rw-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ora-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes rw-slide-in {
-  0% {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+@keyframes ora-slide-in {
+  0% { opacity: 0; transform: translateY(6px) scale(0.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-
 .slide-in {
-  animation: rw-slide-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ora-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes rw-shimmer {
-  0% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.35;
-  }
+@keyframes ora-shimmer {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
 }
-
 .shimmer {
-  animation: rw-shimmer 1.8s ease-in-out infinite;
+  animation: ora-shimmer 1.8s ease-in-out infinite;
 }
 
-/* Scrollbar refinement */
+/* Scrollbar refinement — slim, enterprise look */
 .scroll-rw::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 .scroll-rw::-webkit-scrollbar-thumb {
-  background: var(--rw-stone-line);
-  border-radius: 999px;
+  background: #d4d4d8;
+  border-radius: 0;
+  border: 2px solid #f4f4f5;
 }
 .scroll-rw::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+/* Hairline divider */
+.hairline {
+  height: 1px;
+  background: var(--ora-hairline);
+}
+
+/* Form input — matches Opera flat field look */
+.ora-input {
+  display: block;
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: var(--ora-charcoal);
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  border-radius: 2px;
+  padding: 6px 8px;
+  line-height: 1.35;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ora-input:focus {
+  border-color: var(--ora-red);
+  box-shadow: 0 0 0 2px rgba(199, 70, 52, 0.15);
+}
+.ora-input::placeholder {
+  color: var(--ora-muted-2);
+}
+textarea.ora-input {
+  resize: vertical;
+  min-height: 56px;
+}
+
+/* Top progress bar for F5 refresh */
+@keyframes ora-progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.ora-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 70;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(199, 70, 52, 0.08);
+}
+.ora-progress-bar::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--ora-red);
+  animation: ora-progress 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Highlight glow used by F8 profile focus */
+@keyframes ora-highlight {
+  0% { box-shadow: 0 0 0 0 rgba(199,70,52,0.0); }
+  20% { box-shadow: inset 0 0 0 2px rgba(199,70,52,0.45); }
+  100% { box-shadow: inset 0 0 0 0 rgba(199,70,52,0.0); }
+}
+.ora-highlight {
+  animation: ora-highlight 1100ms ease-out both;
+}
+
+/* ---------- Dense data-table primitives ---------- */
+
+/* The Opera data table itself — dense, hairlined, sticky-header friendly */
+.ora-table {
+  width: 100%;
+  font-size: 11.5px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ora-charcoal);
+}
+.ora-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fafafa;
+  border-bottom: 1px solid var(--ora-hairline-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ora-muted);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+.ora-table thead th.right { text-align: right; }
+.ora-table thead th.center { text-align: center; }
+.ora-table tbody td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--ora-hairline);
+  vertical-align: middle;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.ora-table tbody td.wrap { white-space: normal; }
+.ora-table tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+.ora-table tbody td.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.ora-table tbody tr {
+  height: 28px;
+}
+.ora-table tbody tr:nth-child(even) td {
+  background: #fafbfc;
+}
+.ora-table tbody tr:hover td {
+  background: var(--ora-row-hover);
+}
+.ora-table tbody tr.selected td {
+  background: var(--ora-row-selected);
+  box-shadow: inset 2px 0 0 0 var(--ora-red);
+}
+.ora-table tbody tr.is-cancelled td {
+  text-decoration: line-through;
+  color: var(--ora-muted-2);
+}
+
+/* Sortable header indicator */
+.ora-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.ora-sort .caret { opacity: 0.35; }
+.ora-sort.active { color: var(--ora-charcoal); }
+.ora-sort.active .caret { opacity: 1; color: var(--ora-red); }
+
+/* Two-line page header used at top of every tab content area */
+.ora-page-head {
+  background: #fff;
+  border-bottom: 1px solid var(--ora-hairline);
+  padding: 10px 16px 8px 16px;
+}
+.ora-page-head h2 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ora-charcoal);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+.ora-page-head .sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ora-muted);
+}
+
+/* Toolbar used above tables (filters, search, action buttons) */
+.ora-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--ora-bg);
+  border-bottom: 1px solid var(--ora-hairline);
+  min-height: 36px;
+}
+.ora-toolbar .sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--ora-hairline-2);
+  margin: 0 4px;
+}
+
+/* Small inline button used in toolbars */
+.ora-mini-btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ora-charcoal);
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  border-radius: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.ora-mini-btn:hover { background: var(--ora-row-hover); }
+.ora-mini-btn[data-active="true"] {
+  background: var(--ora-red-soft);
+  color: var(--ora-red-deep);
+  border-color: #f0b9b1;
+  font-weight: 600;
+}
+
+/* Ellipsis / kebab row-action button */
+.ora-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  color: var(--ora-muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.ora-table tbody tr:hover .ora-row-actions { visibility: visible; }
+.ora-row-actions:hover { background: var(--ora-hairline); color: var(--ora-charcoal); }
+
+/* Compact two-column detail grid (label-right, value-left) */
+.ora-detail-grid {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 6px;
+  font-size: 12px;
+}
+.ora-detail-grid dt {
+  text-align: right;
+  color: var(--ora-muted);
+  font-size: 11px;
+  padding-top: 3px;
+}
+.ora-detail-grid dd {
+  color: var(--ora-charcoal);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* "Card" report-style block */
+.ora-report-card {
+  background: #fff;
+  border: 1px solid var(--ora-hairline);
+  border-radius: 2px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ora-report-card:hover {
+  border-color: var(--ora-hairline-2);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Severity dot used for status / activity types */
+.ora-sev-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Section card with strong inner header strip */
+.ora-section {
+  background: #fff;
+  border: 1px solid var(--ora-hairline);
+  border-radius: 2px;
+}
+.ora-section-head {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ora-hairline);
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+/* Sub-tab strip used inside detail screens (Folio, SR workspace) */
+.ora-mini-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--ora-hairline);
+  background: #fff;
+  padding: 0 8px;
+}
+.ora-mini-tabs button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ora-muted);
   background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.ora-mini-tabs button:hover { color: var(--ora-charcoal); }
+.ora-mini-tabs button[data-active="true"] {
+  color: var(--ora-charcoal);
+  font-weight: 700;
+  border-bottom-color: var(--ora-red);
+}
+
+/* Search input look — inline pill */
+.ora-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  background: #fff;
+  border: 1px solid var(--ora-hairline-2);
+  border-radius: 2px;
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+}
+.ora-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--ora-charcoal);
+}
+.ora-search input::placeholder { color: var(--ora-muted-2); }
+
+/* Small status-bar at bottom of a detail panel */
+.ora-detail-footer {
+  border-top: 1px solid var(--ora-hairline);
+  padding: 4px 12px;
+  background: #fafafa;
+  font-size: 10.5px;
+  color: var(--ora-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
 }

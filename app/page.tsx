@@ -1,61 +1,57 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
-import Link from "next/link";
-import { useAppStore, selectFocusedGuest } from "@/lib/store";
-import { useWebSpeech } from "@/hooks/useWebSpeech";
-import BadgePanel from "@/components/BadgePanel";
-import GuestMessagesPanel, {
-  type GuestMessage,
-} from "@/components/GuestMessagesPanel";
-import StaffTasksPanel from "@/components/StaffTasksPanel";
-import OperaProfilePanel from "@/components/OperaProfilePanel";
-import ArrivalCountdownPanel from "@/components/ArrivalCountdownPanel";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
+import {
+  matchGuestForTicket,
+  selectFocusedGuest,
+  useAppStore,
+  type ActiveTab,
+  type Prediction,
+} from "@/lib/store";
+import type { Guest, Ticket } from "@/lib/types";
+import InboxSidebar from "@/components/InboxSidebar";
+import ConversationThread from "@/components/ConversationThread";
+import GuestSidebar from "@/components/GuestSidebar";
 import Logo from "@/components/Logo";
+import Modal from "@/components/Modal";
+import CommandPalette from "@/components/CommandPalette";
+import NewSRModal from "@/components/NewSRModal";
+import PropertyPicker from "@/components/PropertyPicker";
+import FolioTab from "@/components/FolioTab";
+import SetupTab from "@/components/SetupTab";
+import ReservationsTab from "@/components/ReservationsTab";
+import GuestProfilesTab from "@/components/GuestProfilesTab";
+import ActivitiesTab from "@/components/ActivitiesTab";
+import ReportsTab from "@/components/ReportsTab";
+import AddGuestModal, { type NewGuestInput } from "@/components/AddGuestModal";
+import ManualInputPanel, { type ManualGuestData } from "@/components/ManualInputPanel";
+import { ToasterProvider, useToast } from "@/components/Toaster";
+import BadgesPanel, { useBadgePingOnTicket } from "@/components/BadgesPanel";
+import BadgesStatusPill from "@/components/BadgesStatusPill";
+import SideDrawer from "@/components/SideDrawer";
 
 const STAFF_ID = "staff-kristian-01";
+const UNASSIGNED_KEY = "__unassigned__";
 
-// Keywords that signal a learned preference in a ticket
-const PREFERENCE_PATTERNS: Array<{ re: RegExp; extract: (m: RegExpMatchArray) => string }> = [
-  { re: /requested?\s+(.+?)(?:\s+(?:again|and|for|from|to)\b|$)/i, extract: (m) => `Requested ${m[1]}` },
-  { re: /prefer(?:s|red)?\s+(.+?)(?:\s+(?:and|for|from|to)\b|$)/i, extract: (m) => `Prefers ${m[1]}` },
-  { re: /(?:extra|additional)\s+(\w[\w\s]+?)(?:\s+brought|$)/i, extract: (m) => `Likes extra ${m[1]}` },
-  { re: /(?:always|usually)\s+(?:orders?|takes?|wants?)\s+(.+?)(?:\s+(?:and|for|from)\b|$)/i, extract: (m) => `Often orders ${m[1]}` },
+const NAV_TABS: { key: ActiveTab; label: string }[] = [
+  { key: "reservations", label: "Reservations" },
+  { key: "guests", label: "Guest Profiles" },
+  { key: "service", label: "Service Requests" },
+  { key: "activities", label: "Activities" },
+  { key: "folio", label: "Folio" },
+  { key: "reports", label: "Reports" },
+  { key: "setup", label: "Setup" },
 ];
 
-function extractLearnedPreference(ticket: { intent: string; action_required: string; internal_notes: string }): string | null {
-  const text = `${ticket.intent}. ${ticket.action_required}. ${ticket.internal_notes}`;
-  for (const { re, extract } of PREFERENCE_PATTERNS) {
-    const m = text.match(re);
-    if (m) {
-      const raw = extract(m).trim();
-      if (raw.length > 5 && raw.length < 80) return raw;
-    }
-  }
-  return null;
-}
-
-const SAMPLE_TRANSCRIPTS: { label: string; text: string }[] = [
-  {
-    label: "Scenario 2 — Urgent Maintenance",
-    text: "Mr. Chen in 412 — his AC is making a grinding noise and the room won't go below 23 degrees. He's got an early flight, he's not happy. Get someone up here now.",
-  },
-  {
-    label: "Scenario 1 — Returning Legacy Guest",
-    text: "Mrs. Whitfield is here for the week. She mentioned the gardenias from her last stay were perfect — please make sure we have the same arrangement in 1102 before she comes down for tea at four.",
-  },
-  {
-    label: "Scenario 5 — Allergy Alert",
-    text: "Heads up — Mr. Chen called from the car, he wants the welcome amenity in 412 changed. No nuts in anything, not even on the cheese board. He says last time there were almonds and he had to send it back.",
-  },
-  {
-    label: "Scenario 3 — Dietary Restriction",
-    text: "Dr. Patel at table 14 is here for the cardiology conference all week. He needs kosher meals for breakfast and dinner every day — please coordinate with the kitchen and make sure room service has the same note.",
-  },
-  {
-    label: "Scenario 4 — Housekeeping Preference",
-    text: "Sofia in 808 says the lilies are wilting — swap them for fresh stems, white peonies if we have them, before turndown. She's back around seven.",
-  },
+const FN_KEYS: { key: string; label: string }[] = [
+  { key: "F1", label: "Help" },
+  { key: "F2", label: "Quick Find" },
+  { key: "F3", label: "New Reservation" },
+  { key: "F4", label: "Pre-Arrival" },
+  { key: "F5", label: "Refresh" },
+  { key: "F8", label: "Profile" },
+  { key: "F12", label: "Service Request" },
 ];
 
 async function typeOut(
@@ -71,68 +67,189 @@ async function typeOut(
   setTranscript(text);
 }
 
-export default function Home() {
+export default function Page() {
+  // Wrap everything in the Toaster provider so any descendant can call useToast()
+  return (
+    <ToasterProvider>
+      <Home />
+    </ToasterProvider>
+  );
+}
+
+function Home() {
   const guests = useAppStore((s) => s.guests);
   const tickets = useAppStore((s) => s.tickets);
-  const isListening = useAppStore((s) => s.isListening);
-  const transcript = useAppStore((s) => s.currentTranscript);
+  const predictionsMap = useAppStore((s) => s.predictions);
   const focusedGuestId = useAppStore((s) => s.focusedGuestId);
   const focusedGuest = useAppStore(selectFocusedGuest);
+  const liveTranscript = useAppStore((s) => s.currentTranscript);
+  const isListeningStore = useAppStore((s) => s.isListening);
 
-  const setListening = useAppStore((s) => s.setListening);
+  const activeTab = useAppStore((s) => s.activeTab);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const selectedProperty = useAppStore((s) => s.selectedProperty);
+  const resetDemoState = useAppStore((s) => s.resetDemoState);
+
   const setTranscript = useAppStore((s) => s.setTranscript);
+  const setListening = useAppStore((s) => s.setListening);
   const addTicket = useAppStore((s) => s.addTicket);
   const setGuestBrief = useAppStore((s) => s.setGuestBrief);
+  const setPredictions = useAppStore((s) => s.setPredictions);
   const focusGuest = useAppStore((s) => s.focusGuest);
-  const addLearnedPreference = useAppStore((s) => s.addLearnedPreference);
-  const enrichGuest = useAppStore((s) => s.enrichGuest);
+  const addGuest = useAppStore((s) => s.addGuest);
+  const setGuestMetadata = useAppStore((s) => s.setGuestMetadata);
 
+  const { toast } = useToast();
+
+  const [focusedKey, setFocusedKey] = useState<string | null>(
+    focusedGuestId ?? null,
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
-  const [isScrapingSocial, setIsScrapingSocial] = useState(false);
-  const [lastScrapeSource, setLastScrapeSource] = useState<'apify' | 'demo' | null>(null);
+  const [isGeneratingPredictions, setIsGeneratingPredictions] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showArrival, setShowArrival] = useState(false);
+  const [sseConnected, setSseConnected] = useState(false);
+  const [showBadgeQR, setShowBadgeQR] = useState(true);
 
-  const generateBriefForGuest = useCallback(
-    async (guestId: string) => {
-      setIsGeneratingBrief(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/guest-brief", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            guest_id: guestId,
-            guests: useAppStore.getState().guests,
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
-        }
-        const data = (await res.json()) as { brief: Parameters<typeof setGuestBrief>[1] };
-        setGuestBrief(guestId, data.brief);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        throw e;
-      } finally {
-        setIsGeneratingBrief(false);
+  // Modal/popover state
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [newSROpen, setNewSROpen] = useState(false);
+  const [newReservationOpen, setNewReservationOpen] = useState(false);
+  const [addGuestOpen, setAddGuestOpen] = useState(false);
+  const [manualInputOpen, setManualInputOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [badgesOpen, setBadgesOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Flash the wearer's badge to LIVE when an SSE ticket arrives.
+  useBadgePingOnTicket(tickets);
+
+  const guestSidebarRef = useRef<HTMLDivElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+  // Bumping this state value re-runs the SSE effect (used by F5 Refresh).
+  const [sseEpoch, setSseEpoch] = useState(0);
+
+  // Close user popover on outside click
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
       }
-    },
-    [setGuestBrief],
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [userMenuOpen]);
+
+  // Sync focusedKey with store focusedGuestId when the store changes from elsewhere.
+  useEffect(() => {
+    if (focusedGuestId && focusedKey !== UNASSIGNED_KEY) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFocusedKey(focusedGuestId);
+    }
+  }, [focusedGuestId, focusedKey]);
+
+  /* ---------- SSE wiring ---------- */
+  useEffect(() => {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource("/api/events");
+      es.onopen = () => setSseConnected(true);
+      es.onerror = () => setSseConnected(false);
+      es.onmessage = (ev: MessageEvent<string>) => {
+        try {
+          const payload = JSON.parse(ev.data) as
+            | { type: "ticket"; ticket: Ticket }
+            | { type: "transcript"; transcript: string; staff_id: string };
+          if (payload.type === "ticket") {
+            addTicket(payload.ticket);
+            const match = matchGuestForTicket(
+              payload.ticket,
+              useAppStore.getState().guests,
+            );
+            if (match) {
+              focusGuest(match.id);
+              setFocusedKey(match.id);
+            } else {
+              setFocusedKey(UNASSIGNED_KEY);
+            }
+            setTranscript("");
+            setListening(false);
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              try {
+                navigator.vibrate?.(120);
+              } catch {
+                /* noop */
+              }
+            }
+          } else if (payload.type === "transcript") {
+            setTranscript(payload.transcript);
+            setListening(true);
+          }
+        } catch {
+          /* ignore */
+        }
+      };
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSseConnected(false);
+    }
+    return () => {
+      es?.close();
+    };
+    // sseEpoch bump forces a reconnect (F5 refresh).
+  }, [addTicket, focusGuest, setListening, setTranscript, sseEpoch]);
+
+  /* ---------- Derived ---------- */
+
+  const isUnassignedFocused = focusedKey === UNASSIGNED_KEY;
+
+  const unassignedTickets: Ticket[] = useMemo(
+    () => tickets.filter((t) => !matchGuestForTicket(t, guests)),
+    [tickets, guests],
   );
+
+  const threadTickets: Ticket[] = useMemo(() => {
+    if (isUnassignedFocused) return unassignedTickets;
+    if (!focusedGuest) return [];
+    return tickets.filter((t) => {
+      const byRoom = t.room_number && focusedGuest.room === t.room_number;
+      const byName =
+        t.guest_name &&
+        focusedGuest.name
+          .toLowerCase()
+          .includes(t.guest_name.toLowerCase());
+      return Boolean(byRoom || byName);
+    });
+  }, [tickets, focusedGuest, isUnassignedFocused, unassignedTickets]);
+
+  const predictionsForFocused: Prediction[] = focusedGuest
+    ? predictionsMap[focusedGuest.id] ?? []
+    : [];
+
+  /* ---------- Handlers ---------- */
+
+  const handleFocusGuest = useCallback(
+    (id: string | null) => {
+      setFocusedKey(id);
+      focusGuest(id);
+    },
+    [focusGuest],
+  );
+
+  const handleFocusUnassigned = useCallback(() => {
+    setFocusedKey(UNASSIGNED_KEY);
+    focusGuest(null);
+  }, [focusGuest]);
 
   const submitTranscript = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) {
-        setListening(false);
-        return;
-      }
+      if (!trimmed) return;
       setIsProcessing(true);
-      setListening(false);
-      setTranscript(trimmed);
+      setError(null);
       try {
         const res = await fetch("/api/extract", {
           method: "POST",
@@ -145,277 +262,969 @@ export default function Home() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+          throw new Error(err.error ?? `HTTP ${res.status}`);
         }
-        const data = (await res.json()) as { ticket: Parameters<typeof addTicket>[0] };
+        const data = (await res.json()) as { ticket: Ticket };
         addTicket(data.ticket);
+        const match = matchGuestForTicket(
+          data.ticket,
+          useAppStore.getState().guests,
+        );
+        if (match) {
+          focusGuest(match.id);
+          setFocusedKey(match.id);
+        } else {
+          setFocusedKey(UNASSIGNED_KEY);
+        }
         if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-          try { navigator.vibrate(180); } catch {}
-        }
-
-        // Focus the guest whose room/name matches
-        let matchedGuestId: string | null = null;
-        if (data.ticket.room_number) {
-          const match = useAppStore
-            .getState()
-            .guests.find((g) => g.room === data.ticket.room_number);
-          if (match) {
-            focusGuest(match.id);
-            matchedGuestId = match.id;
+          try {
+            navigator.vibrate?.(120);
+          } catch {
+            /* noop */
           }
         }
-        if (!matchedGuestId && data.ticket.guest_name) {
-          const match = useAppStore
-            .getState()
-            .guests.find((g) =>
-              g.name.toLowerCase().includes(data.ticket.guest_name!.toLowerCase())
-            );
-          if (match) {
-            focusGuest(match.id);
-            matchedGuestId = match.id;
-          }
-        }
-
-        // Interaction memory: extract learned preference and save to guest profile
-        if (matchedGuestId) {
-          const pref = extractLearnedPreference(data.ticket);
-          if (pref) addLearnedPreference(matchedGuestId, pref);
-        }
-
         setTimeout(() => setTranscript(""), 400);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setIsProcessing(false);
+        setListening(false);
       }
     },
-    [addTicket, addLearnedPreference, focusGuest, setListening, setTranscript],
+    [addTicket, focusGuest, setListening, setTranscript],
   );
 
-  const { isSupported, start, stop } = useWebSpeech({
-    onInterimTranscript: (t) => setTranscript(t),
-    onFinalTranscript: (t) => { void submitTranscript(t); },
-    onError: (e) => {
-      setError(`Mic: ${e}`);
-      setListening(false);
+  const onSampleTranscript = useCallback(
+    async (text: string) => {
+      if (isProcessing) return;
+      setError(null);
+      setListening(true);
+      setTranscript("");
+      await typeOut(text, setTranscript);
+      await new Promise((r) => setTimeout(r, 350));
+      await submitTranscript(text);
     },
-  });
+    [isProcessing, setListening, setTranscript, submitTranscript],
+  );
 
-  const onToggle = () => {
-    if (isProcessing) return;
-    setError(null);
-    if (isListening) {
-      stop();
-      return;
-    }
-    if (isSupported === false) {
-      setError("Web Speech API not supported — use Chrome or Edge. Use the Demo Controls below.");
-      return;
-    }
-    setTranscript("");
-    setListening(true);
-    start();
-  };
+  const onTriggerBadge = useCallback(
+    async (text: string) => {
+      if (isProcessing) return;
+      setError(null);
+      setListening(true);
+      setTranscript("");
+      await typeOut(text, setTranscript);
+      try {
+        const res = await fetch("/api/badge-transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: text, staff_id: STAFF_ID }),
+        });
+        if (!res.ok) {
+          await submitTranscript(text);
+          return;
+        }
+        const prevCount = useAppStore.getState().tickets.length;
+        setTimeout(() => {
+          if (useAppStore.getState().tickets.length === prevCount) {
+            void submitTranscript(text);
+          } else {
+            setListening(false);
+            setTranscript("");
+          }
+        }, 2500);
+      } catch {
+        await submitTranscript(text);
+      }
+    },
+    [isProcessing, setListening, setTranscript, submitTranscript],
+  );
 
-  const onGenerateBrief = async () => {
-    if (!focusedGuestId || isGeneratingBrief) return;
-    await generateBriefForGuest(focusedGuestId);
-  };
-
-  const onScrapeFromSocial = useCallback(async () => {
-    if (!focusedGuestId || isScrapingSocial) return;
-    setIsScrapingSocial(true);
+  const onGenerateBrief = useCallback(async () => {
+    if (!focusedGuest || isGeneratingBrief) return;
+    setIsGeneratingBrief(true);
     setError(null);
     try {
-      const res = await fetch('/api/social-scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          guest_id: focusedGuestId,
+          guest_id: focusedGuest.id,
+          guests: useAppStore.getState().guests,
+        }),
+      });
+      if (!res.ok) {
+        const fb = await fetch("/api/guest-brief", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            guest_id: focusedGuest.id,
+            guests: useAppStore.getState().guests,
+          }),
+        });
+        if (!fb.ok) {
+          const err = await fb.json().catch(() => ({}));
+          throw new Error(err.error ?? `HTTP ${fb.status}`);
+        }
+        const data = (await fb.json()) as {
+          brief: Parameters<typeof setGuestBrief>[1];
+        };
+        setGuestBrief(focusedGuest.id, data.brief);
+        return;
+      }
+      const data = (await res.json()) as {
+        brief: Parameters<typeof setGuestBrief>[1];
+      };
+      setGuestBrief(focusedGuest.id, data.brief);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsGeneratingBrief(false);
+    }
+  }, [focusedGuest, isGeneratingBrief, setGuestBrief]);
+
+  const onGeneratePredictions = useCallback(async () => {
+    if (!focusedGuest || isGeneratingPredictions) return;
+    setIsGeneratingPredictions(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/predictions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guest_id: focusedGuest.id,
           guests: useAppStore.getState().guests,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+        throw new Error(err.error ?? `HTTP ${res.status}`);
       }
-      const data = (await res.json()) as { enriched_guest: Parameters<typeof enrichGuest>[1]; source: 'apify' | 'demo' };
-      enrichGuest(focusedGuestId, data.enriched_guest);
-      setLastScrapeSource(data.source);
+      const data = (await res.json()) as { predictions: Prediction[] };
+      setPredictions(focusedGuest.id, data.predictions ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setIsScrapingSocial(false);
+      setIsGeneratingPredictions(false);
     }
-  }, [focusedGuestId, isScrapingSocial, enrichGuest]);
+  }, [focusedGuest, isGeneratingPredictions, setPredictions]);
 
-  const onSampleTranscript = async (text: string) => {
-    if (isProcessing || isListening) return;
-    setError(null);
-    setListening(true);
-    setTranscript("");
-    await typeOut(text, setTranscript);
-    await new Promise((r) => setTimeout(r, 350));
-    await submitTranscript(text);
-  };
+  /* ---------- F-key actions ---------- */
 
-  const latestTicket = tickets[0] ?? null;
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    // re-trigger SSE reconnect
+    setSseEpoch((n) => n + 1);
+    setTimeout(() => setRefreshing(false), 600);
+    toast("Refreshed", "info");
+  }, [toast]);
 
-  const guestMessages: GuestMessage[] = tickets
-    .filter((t) => t.guest_facing_message && t.guest_facing_message.trim() !== "")
-    .map((t) => ({
-      guest_name: t.guest_name ?? "Guest",
-      room: t.room_number ?? "—",
-      text: t.guest_facing_message,
-      timestamp: t.timestamp,
-    }));
+  const handleProfileFocus = useCallback(() => {
+    const el = guestSidebarRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    el.classList.remove("ora-highlight");
+    // re-trigger animation
+    void el.offsetWidth;
+    el.classList.add("ora-highlight");
+  }, []);
+
+  const handleResetDemo = useCallback(() => {
+    resetDemoState();
+    setFocusedKey(focusedGuestId ?? null);
+    toast("Demo data reset", "success");
+  }, [resetDemoState, focusedGuestId, toast]);
+
+  const handleOpenPreArrival = useCallback(() => {
+    if (!focusedGuest) {
+      toast("Select a guest first", "info");
+      return;
+    }
+    setManualInputOpen(true);
+  }, [focusedGuest, toast]);
+
+  const handleCreateGuest = useCallback(
+    (data: NewGuestInput) => {
+      const id =
+        "guest-" +
+        Date.now().toString(36) +
+        "-" +
+        (typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID().slice(0, 8)
+          : Math.random().toString(36).slice(2, 10));
+      const guest: Guest = {
+        id,
+        name: data.name,
+        room: data.room || null,
+        booking_dates: {
+          check_in: data.check_in,
+          check_out: data.check_out,
+        },
+        vip_tier: data.vip_tier,
+        preferences: [],
+        past_stays: data.past_stays,
+        notes: data.notes ?? "",
+        interaction_log: [],
+      };
+      addGuest(guest);
+      setFocusedKey(id);
+      setActiveTab("service");
+      setAddGuestOpen(false);
+      toast(
+        "Profile created — scroll right to generate AI Research with real web data",
+        "success",
+      );
+    },
+    [addGuest, setActiveTab, toast],
+  );
+
+  const handleSaveManualInput = useCallback(
+    async (data: ManualGuestData) => {
+      if (!focusedGuest) return;
+      // Update local store immediately for responsive UI
+      setGuestMetadata(focusedGuest.id, data);
+      // Persist server-side (best-effort)
+      try {
+        await fetch("/api/guest-metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            guest_id: focusedGuest.id,
+            patch: data,
+          }),
+        });
+        toast("Pre-arrival info saved", "success");
+      } catch {
+        toast("Saved locally — server unavailable", "info");
+      }
+    },
+    [focusedGuest, setGuestMetadata, toast],
+  );
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // ignore when typing in inputs (except Escape, which Modal/Palette handle themselves)
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
+      switch (e.key) {
+        case "F1":
+          e.preventDefault();
+          setHelpOpen(true);
+          break;
+        case "F2":
+          // Allow F2 even in inputs (it's the quick find)
+          e.preventDefault();
+          setPaletteOpen(true);
+          break;
+        case "F3":
+          if (isEditable) return;
+          e.preventDefault();
+          setNewReservationOpen(true);
+          break;
+        case "F4":
+          if (isEditable) return;
+          e.preventDefault();
+          handleOpenPreArrival();
+          break;
+        case "F5":
+          e.preventDefault();
+          handleRefresh();
+          break;
+        case "F8":
+          if (isEditable) return;
+          e.preventDefault();
+          handleProfileFocus();
+          break;
+        case "F12":
+          e.preventDefault();
+          setNewSROpen(true);
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleRefresh, handleProfileFocus, handleOpenPreArrival]);
+
+  /* ---------- Render ---------- */
 
   return (
-    <div className="min-h-screen flex flex-col paper">
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-10 pt-8 pb-6">
-        <Logo variant="wordmark" size={42} tone="forest" />
-        <div className="hidden md:flex items-center gap-6">
-          <Pill label="Glowing.io" status="online" />
-          <Pill label="Opera PMS" status="online" />
-          <Pill label="Anthropic" status="online" />
-          <Link
-            href="/guests"
-            className="rounded-full border border-rw-stone-line bg-white px-4 py-1.5 text-[11px] uppercase tracking-[0.18em] text-rw-mute hover:border-rw-brass hover:text-rw-forest transition-colors"
-          >
-            Guest Profiles ↗
-          </Link>
-        </div>
-        <div className="flex items-center gap-5">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-ora-bg text-ora-charcoal">
+      {refreshing && <div className="ora-progress-bar" />}
+
+      {/* Single thin OPERA Cloud topbar */}
+      <div className="shrink-0 h-11 px-3 flex items-center justify-between bg-white border-b border-ora-hairline">
+        {/* LEFT — hamburger + wordmark + property */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
-            onClick={() => setShowArrival(true)}
-            className="rounded-full border border-rw-brass bg-rw-brass/10 text-rw-brass px-5 py-2 text-[11.5px] uppercase tracking-[0.16em] hover:bg-rw-brass hover:text-white transition-colors font-medium"
+            aria-label="Open main menu"
+            onClick={() => setDrawerOpen((v) => !v)}
+            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-charcoal"
+            title="Main menu"
           >
-            ✦ Incoming Booking
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
+            </svg>
           </button>
-          <div className="text-right">
-            <div className="eyebrow eyebrow-brass">Staff Console</div>
-            <div className="font-serif text-[15px] text-rw-forest leading-tight">
-              Front-of-House · Floor 1
-            </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("service")}
+            className="font-bold tracking-tight text-[14px] leading-none hover:opacity-80"
+            style={{ color: "var(--ora-red)" }}
+            title="OPERA Cloud — Home"
+          >
+            OPERA Cloud
+          </button>
+          <span className="text-ora-muted-2">·</span>
+          <PropertyPicker />
+        </div>
+
+        {/* CENTER — breadcrumb */}
+        <div className="hidden md:flex items-center gap-1.5 text-[11px] text-ora-muted min-w-0 px-3 flex-1 justify-center">
+          <span className="truncate">
+            <span>
+              {NAV_TABS.find((t) => t.key === activeTab)?.label ?? "Service Requests"}
+            </span>
+            {activeTab === "service" && focusedGuest && (
+              <>
+                <span className="mx-1.5">›</span>
+                <span className="text-ora-charcoal font-medium">
+                  {focusedGuest.name}
+                  {focusedGuest.room && (
+                    <span className="ml-1 text-ora-muted font-normal">
+                      · {focusedGuest.room}
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* RIGHT — badges + status + help + avatar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <BadgesStatusPill onOpenPanel={() => setBadgesOpen(true)} />
+          <span className="h-4 w-px bg-ora-hairline" />
+          <span className="inline-flex items-center gap-1.5 text-[11px]">
+            <span className="relative flex h-1.5 w-1.5">
+              {sseConnected && (
+                <span className="absolute inset-0 rounded-full bg-ora-green opacity-60 pulse-ring" />
+              )}
+              <span
+                className={`relative h-1.5 w-1.5 rounded-full ${
+                  sseConnected ? "bg-ora-green" : "bg-ora-muted-2"
+                }`}
+              />
+            </span>
+            <span className="text-ora-charcoal">
+              {sseConnected ? "Live · Connected" : "Offline"}
+            </span>
+          </span>
+          <span className="h-4 w-px bg-ora-hairline" />
+          <button
+            type="button"
+            aria-label="Quick Find"
+            onClick={() => setPaletteOpen(true)}
+            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+            title="Quick Find (F2)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Help"
+            onClick={() => setHelpOpen(true)}
+            className="h-7 w-7 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+            title="Help (F1)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4" />
+              <path d="M12 17h.01" />
+            </svg>
+          </button>
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="h-7 w-7 rounded-full bg-ora-red text-white flex items-center justify-center text-[11px] font-semibold cursor-pointer"
+              aria-label="Kristian"
+            >
+              K
+            </button>
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-[220px] bg-white border border-ora-hairline-2 shadow-[0_4px_14px_rgba(0,0,0,0.12)] rounded-sm fade-up">
+                <div className="px-3 py-2.5 border-b border-ora-hairline bg-ora-bg">
+                  <div className="text-[12.5px] font-semibold text-ora-charcoal">
+                    Kristian
+                  </div>
+                  <div className="text-[10.5px] text-ora-muted">
+                    Front-of-house staff · staff-kristian-01
+                  </div>
+                </div>
+                <ul className="py-1">
+                  {[
+                    { label: "View profile", kind: "info" as const },
+                    { label: "Preferences", kind: "info" as const },
+                    {
+                      label: "Sign out",
+                      kind: "info" as const,
+                      msg: "Sign out (mock)",
+                    },
+                  ].map((it) => (
+                    <li key={it.label}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          if (it.msg) toast(it.msg, it.kind);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-[12px] text-ora-charcoal hover:bg-ora-row-hover"
+                      >
+                        {it.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
-      </header>
-
-      <div className="hairline mx-10" />
+      </div>
 
       {/* Error banner */}
       {error && (
-        <div className="mx-10 mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-[12.5px] text-red-800 flex items-start justify-between gap-4">
-          <span>{error}</span>
+        <div className="shrink-0 px-4 py-1.5 bg-ora-red-soft border-b border-ora-red/30 text-[12px] text-ora-red-deep flex items-center justify-between gap-4">
+          <span className="flex items-center gap-2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 2L1 21h22L12 2zm0 6l7.5 13h-15L12 8zm-1 4v4h2v-4h-2zm0 5v2h2v-2h-2z" />
+            </svg>
+            {error}
+          </span>
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-red-600 hover:text-red-900 text-[11px] uppercase tracking-wider"
+            className="text-ora-red-deep hover:text-ora-red text-[11px] uppercase tracking-wider font-semibold"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* 4-panel grid */}
-      <main className="flex-1 px-10 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 h-[calc(100vh-220px)] min-h-[820px]">
-          <BadgePanel
-            isListening={isListening || isProcessing}
-            transcript={isProcessing ? `${transcript} · routing…` : transcript}
-            latestTicket={latestTicket}
-            onToggle={onToggle}
+      {/* Main content area — switches by activeTab */}
+      <main className="flex-1 min-h-0 relative">
+        {activeTab === "service" ? (
+          <div className="h-full grid grid-cols-[300px_minmax(0,1fr)_380px]">
+            <InboxSidebar
+              guests={guests}
+              tickets={tickets}
+              focusedGuestId={focusedGuestId}
+              focusedKey={focusedKey}
+              onFocusGuest={handleFocusGuest}
+              onFocusUnassigned={handleFocusUnassigned}
+              onAddGuest={() => setAddGuestOpen(true)}
+            />
+            <ConversationThread
+              guest={focusedGuest}
+              unassigned={isUnassignedFocused}
+              tickets={threadTickets}
+              isListening={isListeningStore}
+              liveTranscript={liveTranscript}
+              onSampleTranscript={onSampleTranscript}
+              onTriggerBadge={onTriggerBadge}
+              isProcessing={isProcessing}
+              onOpenNewSR={() => setNewSROpen(true)}
+            />
+            <div ref={guestSidebarRef} className="h-full">
+              <GuestSidebar
+                guest={focusedGuest}
+                tickets={threadTickets}
+                predictions={predictionsForFocused}
+                isGeneratingBrief={isGeneratingBrief}
+                isGeneratingPredictions={isGeneratingPredictions}
+                onGenerateBrief={onGenerateBrief}
+                onGeneratePredictions={onGeneratePredictions}
+                onEditPreArrival={handleOpenPreArrival}
+              />
+            </div>
+
+            {showBadgeQR && <BadgeQRCard onClose={() => setShowBadgeQR(false)} />}
+          </div>
+        ) : activeTab === "reservations" ? (
+          <ReservationsTab
+            onRowClick={(id) => {
+              handleFocusGuest(id);
+              setActiveTab("service");
+            }}
           />
-          <GuestMessagesPanel messages={guestMessages} />
-          <StaffTasksPanel tickets={tickets} />
-          <OperaProfilePanel
-            guest={focusedGuest}
-            onGenerateBrief={onGenerateBrief}
-            isGeneratingBrief={isGeneratingBrief}
-            onScrapeFromSocial={onScrapeFromSocial}
-            isScrapingSocial={isScrapingSocial}
-            lastScrapeSource={lastScrapeSource}
+        ) : activeTab === "guests" ? (
+          <GuestProfilesTab
+            onRowClick={(id) => {
+              handleFocusGuest(id);
+              setActiveTab("service");
+            }}
           />
-        </div>
+        ) : activeTab === "activities" ? (
+          <ActivitiesTab />
+        ) : activeTab === "folio" ? (
+          <FolioTab
+            guests={guests}
+            focusedGuestId={focusedGuestId}
+            onFocusGuest={(id) => {
+              focusGuest(id);
+              setActiveTab("folio");
+            }}
+          />
+        ) : activeTab === "reports" ? (
+          <ReportsTab />
+        ) : (
+          <SetupTab />
+        )}
       </main>
 
-      {/* Demo controls */}
-      <footer className="border-t border-rw-stone-line bg-rw-cream/50">
-        <div className="px-10 py-5 flex flex-wrap items-center gap-x-8 gap-y-3">
-          <div>
-            <div className="eyebrow eyebrow-brass">Demo Controls</div>
-            <div className="text-[11px] text-rw-mute mt-0.5">
-              Fallbacks for when the mic doesn&apos;t cooperate.
+      {/* Hamburger drawer — primary OPERA Cloud nav affordance */}
+      <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} topOffset={44}>
+        <div className="px-3 py-2.5 border-b border-ora-hairline bg-ora-bg flex items-center gap-2">
+          <Logo size={18} variant="mark" tone="forest" />
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold text-ora-charcoal leading-tight">
+              {selectedProperty.name}
+            </div>
+            <div className="text-[10px] text-ora-muted-2 uppercase tracking-wider">
+              OPERA Cloud · v26.2
             </div>
           </div>
+        </div>
+        <nav className="flex-1 overflow-y-auto scroll-rw py-1">
+          <DrawerItem
+            label="Home"
+            icon="home"
+            active={activeTab === "service"}
+            onClick={() => {
+              setActiveTab("service");
+              setDrawerOpen(false);
+            }}
+          />
+          {NAV_TABS.map((tab) => (
+            <DrawerItem
+              key={tab.key}
+              label={tab.label}
+              icon={tab.key}
+              active={activeTab === tab.key}
+              onClick={() => {
+                setActiveTab(tab.key);
+                setDrawerOpen(false);
+              }}
+            />
+          ))}
+          <div className="my-1.5 mx-3 h-px bg-ora-hairline" />
+          <DrawerItem
+            label="Configuration"
+            icon="config"
+            onClick={() => {
+              setActiveTab("setup");
+              setDrawerOpen(false);
+            }}
+          />
+          <DrawerItem
+            label="System"
+            icon="system"
+            onClick={() => {
+              setDrawerOpen(false);
+              setHelpOpen(true);
+            }}
+          />
+          <div className="my-1.5 mx-3 h-px bg-ora-hairline" />
+          <DrawerItem
+            label="Connect Badge (QR)"
+            icon="badge"
+            onClick={() => {
+              setShowBadgeQR(true);
+              setDrawerOpen(false);
+            }}
+          />
+          <DrawerItem
+            label="Fleet · Badges Panel"
+            icon="fleet"
+            onClick={() => {
+              setBadgesOpen(true);
+              setDrawerOpen(false);
+            }}
+          />
+        </nav>
+        <div className="px-3 py-2 border-t border-ora-hairline text-[10px] text-ora-muted-2 uppercase tracking-wider flex items-center justify-between">
+          <span>Property: {selectedProperty.id.toUpperCase()}</span>
+          <span>kristian-01</span>
+        </div>
+      </SideDrawer>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {SAMPLE_TRANSCRIPTS.map((s) => (
-              <button
-                key={s.label}
-                type="button"
-                onClick={() => onSampleTranscript(s.text)}
-                disabled={isProcessing || isListening}
-                className="rounded-full border border-rw-stone-line bg-white px-3.5 py-1.5 text-[11.5px] text-rw-ink hover:border-rw-brass hover:text-rw-forest transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {s.label}
-              </button>
-            ))}
-            {isGeneratingBrief && (
-              <span className="text-[11px] text-rw-brass italic">
-                Generating brief…
-              </span>
+      {/* Badges fleet panel */}
+      <BadgesPanel open={badgesOpen} onClose={() => setBadgesOpen(false)} />
+
+      {/* Modals & overlays */}
+      <HelpModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        onResetDemo={handleResetDemo}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSelectGuest={(id) => {
+          handleFocusGuest(id);
+          setActiveTab("service");
+        }}
+      />
+      <NewSRModal
+        open={newSROpen}
+        onClose={() => setNewSROpen(false)}
+        guest={focusedGuest}
+        staffId={STAFF_ID}
+      />
+      <AddGuestModal
+        open={addGuestOpen}
+        onClose={() => setAddGuestOpen(false)}
+        onCreate={handleCreateGuest}
+      />
+      {focusedGuest && (
+        <ManualInputPanel
+          guest={focusedGuest}
+          open={manualInputOpen}
+          onClose={() => setManualInputOpen(false)}
+          onSave={handleSaveManualInput}
+        />
+      )}
+      <Modal
+        open={newReservationOpen}
+        onClose={() => setNewReservationOpen(false)}
+        title="New Reservation"
+        width={460}
+        footer={
+          <button
+            type="button"
+            onClick={() => setNewReservationOpen(false)}
+            className="ora-btn ora-btn-primary"
+          >
+            Close
+          </button>
+        }
+      >
+        <p className="text-[12.5px] text-ora-charcoal leading-relaxed">
+          New Reservation flow is not implemented in this demo.
+        </p>
+        <p className="mt-2 text-[11.5px] text-ora-muted leading-relaxed">
+          This would integrate with Opera Cloud&rsquo;s Reservations module to
+          create a booking against the active property and link it to the guest
+          profile.
+        </p>
+      </Modal>
+    </div>
+  );
+}
+
+/* ---------------- Drawer Item ---------------- */
+
+function DrawerItem({
+  label,
+  icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "w-full text-left flex items-center gap-2.5 px-3 py-2 text-[12.5px] border-l-[3px] transition-colors " +
+        (active
+          ? "bg-ora-bg border-l-ora-red text-ora-charcoal font-semibold"
+          : "border-l-transparent text-ora-charcoal hover:bg-ora-row-hover")
+      }
+    >
+      <span
+        className="h-5 w-5 flex items-center justify-center text-ora-muted shrink-0"
+        aria-hidden
+      >
+        <DrawerIcon name={icon} />
+      </span>
+      <span className="flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
+function DrawerIcon({ name }: { name: string }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor" as const,
+    strokeWidth: 1.7,
+    "aria-hidden": true,
+  };
+  switch (name) {
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 11l9-8 9 8" />
+          <path d="M5 10v10h14V10" />
+        </svg>
+      );
+    case "reservations":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="17" rx="1.5" />
+          <path d="M3 9h18M8 2v4M16 2v4" />
+        </svg>
+      );
+    case "guests":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
+        </svg>
+      );
+    case "service":
+      return (
+        <svg {...common}>
+          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+        </svg>
+      );
+    case "activities":
+      return (
+        <svg {...common}>
+          <path d="M3 12h4l3-9 4 18 3-9h4" />
+        </svg>
+      );
+    case "folio":
+      return (
+        <svg {...common}>
+          <path d="M5 3h11l4 4v14H5z" />
+          <path d="M14 3v6h6" />
+        </svg>
+      );
+    case "reports":
+      return (
+        <svg {...common}>
+          <path d="M3 21V8" />
+          <path d="M9 21V4" />
+          <path d="M15 21v-9" />
+          <path d="M21 21V14" />
+        </svg>
+      );
+    case "setup":
+    case "config":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      );
+    case "system":
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="12" rx="1.5" />
+          <path d="M8 20h8M12 16v4" />
+        </svg>
+      );
+    case "badge":
+      return (
+        <svg {...common}>
+          <rect x="4" y="4" width="16" height="16" rx="1" />
+          <path d="M4 9h16M9 4v16" />
+        </svg>
+      );
+    case "fleet":
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="12" cy="12" r="2.5" />
+          <circle cx="18" cy="12" r="2.5" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      );
+  }
+}
+
+/* ---------------- Help Modal ---------------- */
+
+function HelpModal({
+  open,
+  onClose,
+  onResetDemo,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onResetDemo: () => void;
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title="Help · Shortcuts" width={460}>
+      <div>
+        <h3 className="ora-label mb-2">Function keys</h3>
+        <ul className="space-y-1.5 mb-4">
+          {FN_KEYS.map((f) => (
+            <li
+              key={f.key}
+              className="flex items-center justify-between text-[12.5px] text-ora-charcoal"
+            >
+              <span>{f.label}</span>
+              <kbd className="text-[10.5px] border border-ora-hairline-2 bg-white rounded-sm px-1.5 py-0.5 font-mono">
+                {f.key}
+              </kbd>
+            </li>
+          ))}
+          <li className="flex items-center justify-between text-[12.5px] text-ora-charcoal">
+            <span>Close modals / palette</span>
+            <kbd className="text-[10.5px] border border-ora-hairline-2 bg-white rounded-sm px-1.5 py-0.5 font-mono">
+              Esc
+            </kbd>
+          </li>
+        </ul>
+
+        <h3 className="ora-label mb-2">Build</h3>
+        <p className="text-[12px] text-ora-charcoal">
+          v0.1.0 · Concierge AI · Build hackathon-2026
+        </p>
+
+        <h3 className="ora-label mt-4 mb-2">Demo data</h3>
+        <button
+          type="button"
+          onClick={() => {
+            onResetDemo();
+            onClose();
+          }}
+          className="ora-btn"
+        >
+          Reset demo data
+        </button>
+        <p className="mt-1.5 text-[10.5px] text-ora-muted">
+          Clears tickets, predictions, and notes. Seed guests are preserved.
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+/* -------- Connect Badge QR widget -------- */
+
+function BadgeQRCard({ onClose }: { onClose: () => void }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [targetUrl, setTargetUrl] = useState<string>("");
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Prefer the production URL so phones can scan from any environment
+    // (local dev included). Falls back to window.location.origin only if
+    // the production domain isn't reachable.
+    const url = "https://hotel.eliaspfeffer.de/badge";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTargetUrl(url);
+    QRCode.toDataURL(url, {
+      margin: 1,
+      width: 220,
+      color: { dark: "#1F1D1B", light: "#FFFFFF" },
+    })
+      .then(setDataUrl)
+      .catch(() => setDataUrl(null));
+  }, []);
+
+  return (
+    <div
+      className="absolute bottom-3 right-3 z-30 w-[260px] bg-white border border-ora-hairline-2 shadow-[0_4px_14px_rgba(0,0,0,0.08)] rounded-sm fade-up"
+      role="dialog"
+      aria-label="Connect Badge"
+    >
+      {/* header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-ora-hairline bg-ora-bg">
+        <div className="flex items-center gap-2">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: "var(--ora-red)" }}
+          />
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-ora-charcoal">
+            Connect Badge
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? "Expand" : "Collapse"}
+            className="h-5 w-5 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden>
+              {collapsed ? (
+                <path d="M5 3L1 7h8L5 3z" />
+              ) : (
+                <path d="M5 7L1 3h8L5 7z" />
+              )}
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="h-5 w-5 rounded-sm hover:bg-ora-row-hover flex items-center justify-center text-ora-muted"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M1 1l8 8M9 1l-8 8" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      {!collapsed && (
+        <div className="px-3 py-3">
+          <div className="bg-white border border-ora-hairline rounded-sm p-2 flex items-center justify-center">
+            {dataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={dataUrl}
+                alt="Badge QR code"
+                width={208}
+                height={208}
+                className="block"
+              />
+            ) : (
+              <div className="h-[208px] w-[208px] bg-ora-bg flex items-center justify-center text-[11px] text-ora-muted">
+                Generating QR…
+              </div>
             )}
           </div>
-
-          <label className="flex items-center gap-3 ml-auto">
-            <span className="eyebrow">Focused guest</span>
-            <select
-              value={focusedGuestId ?? ""}
-              onChange={(e) => focusGuest(e.target.value || null)}
-              className="rounded-full border border-rw-stone-line bg-white px-3.5 py-1.5 text-[12px] text-rw-ink focus:outline-none focus:border-rw-brass"
-            >
-              <option value="">— None —</option>
-              {guests.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                  {g.room ? ` · Room ${g.room}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="mt-2.5 text-[11.5px] text-ora-charcoal leading-snug">
+            Scan with phone Chrome to open the AI Badge.
+          </p>
+          <p className="mt-1 text-[10.5px] text-ora-muted-2 break-all font-mono">
+            {targetUrl || "—"}
+          </p>
+          <p className="mt-2 text-[10px] text-ora-muted-2 leading-snug">
+            * ngrok or LAN-reachable host required for external phones to connect.
+          </p>
         </div>
-      </footer>
-
-      {/* Arrival countdown modal */}
-      {showArrival && (
-        <ArrivalCountdownPanel
-          guests={guests}
-          onClose={() => setShowArrival(false)}
-          onGenerateBrief={generateBriefForGuest}
-        />
       )}
     </div>
   );
 }
 
-function Pill({
-  label,
-  status,
-}: {
-  label: string;
-  status: "online" | "offline";
-}) {
-  return (
-    <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-rw-mute">
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          status === "online" ? "bg-emerald-500" : "bg-rw-mute/40"
-        }`}
-      />
-      {label}
-    </span>
-  );
-}
