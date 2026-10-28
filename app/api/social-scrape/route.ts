@@ -177,15 +177,15 @@ async function scrapeWithApify(
 
     handles.linkedin
       ? apifyRun(
-          'apify/linkedin-profile-scraper',
-          { startUrls: [{ url: `https://www.linkedin.com/in/${handles.linkedin}/` }], maxItems: 5 },
+          'johnvc~linkedin-profile-api',
+          { profileUrls: [`https://www.linkedin.com/in/${handles.linkedin}/`] },
           apiKey,
         ).then((items) => {
           for (const item of (items as Array<Record<string, unknown>>).slice(0, 5)) {
-            const text = ((item.summary ?? item.headline ?? '') as string).trim();
+            const text = ((item.about ?? item.summary ?? item.headline ?? '') as string).trim();
             if (text) posts.push(`LinkedIn: ${text.slice(0, 400)}`);
             if (!profilePhoto) {
-              const pic = (item.picture ?? item.profilePicture ?? item.image ?? '') as string;
+              const pic = (item.picture ?? item.profilePicture ?? item.image ?? item.avatar ?? '') as string;
               if (pic) profilePhoto = pic;
             }
           }
